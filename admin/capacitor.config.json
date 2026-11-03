@@ -1,0 +1,20 @@
+{
+  "appId": "in.backreybases.ops",
+  "appName": "Backrey Bases Operations",
+  "webDir": "public",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "http://localhost:3000/admin/",
+    "cleartext": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["badge", "sound", "alert"]
+    },
+    "Camera": {
+      "quality": 85,
+      "allowEditing": true,
+      "resultType": "Uri"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "name": "backrey-bases",
+  "version": "1.0.0",
+  "description": "Backrey Bases - Commercial & Artisanal Bakery Bases Storefront & Wholesale Portal",
+  "main": "backend/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node backend/server.js",
+    "test:m2": "node tests/m2.test.js",
+    "test:m3": "node tests/m3.test.js",
+    "test:m5": "node tests/m5.test.js",
+    "test:m678": "node tests/m678.test.js",
+    "test:admin": "node tests/admin.test.js",
+    "test:leftover": "node tests/leftover.test.js",
+    "test": "node tests/m2.test.js && node tests/m3.test.js && node tests/m5.test.js && node tests/m678.test.js && node tests/admin.test.js && node tests/leftover.test.js"
+  },
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "pdfkit": "^0.20.2"
+  }
+}
