@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Wholesale Portal | Backrey Bases</title>
+  <meta name="description" content="Wholesale shopkeeper portal for Backrey Bases commercial pizza bases, burger buns, and bakery supplies.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/styles/theme.css">
+  <link rel="stylesheet" href="/styles/main.css">
+  <style>
+    .wholesale-tag-badge {
+      background: #78350F;
+      color: #FEF3C7;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: var(--radius-xs);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .auth-toggle-bar {
+      display: flex;
+      border-bottom: 2px solid var(--color-border);
+      margin-bottom: 24px;
+    }
+    .auth-tab-btn {
+      flex: 1;
+      padding: 12px 16px;
+      text-align: center;
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--color-text-muted);
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: all var(--transition-fast);
+    }
+    .auth-tab-btn.active {
+      color: var(--color-primary);
+      border-bottom-color: var(--color-primary);
+    }
+    .dashboard-header-card {
+      background: linear-gradient(135deg, #FFF7ED 0%, #F5ECE3 100%);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    @media (min-width: 768px) {
+      .dashboard-header-card {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+    }
+    .orders-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+    }
+    .orders-table th, .orders-table td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .orders-table th {
+      background: var(--color-surface-alt);
+      font-weight: 700;
+      color: var(--color-text-muted);
+      font-size: 0.78rem;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Navigation Header -->
+  <header class="site-header">
+    <div class="container">
+      <div class="header-inner">
+        <a href="/" class="brand-logo" aria-label="Backrey Bases Home">
+          <div class="brand-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"></path>
+              <circle cx="12" cy="12" r="2"></circle>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Backrey Bases</span>
+            <span class="brand-subtitle"><span class="wholesale-tag-badge">Wholesale B2B</span></span>
+          </div>
+        </a>
+
+        <div class="header-actions">
+          <a href="/" class="btn-wholesale-link">← Public Storefront</a>
+          <button id="btnHeaderLogout" class="btn-wholesale-link" style="display:none; color:var(--color-stock-out);">Log Out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top: 30px; padding-bottom: 60px;">
+    
+    <!-- AUTH VIEW: LOGIN & REGISTER (Blueprint 3.8) -->
+    <div id="authView" style="max-width: 520px; margin: 0 auto;">
+      <div class="checkout-card">
+        <div class="auth-toggle-bar">
+          <button class="auth-tab-btn active" id="tabBtnLogin">Shopkeeper Login</button>
+          <button class="auth-tab-btn" id="tabBtnRegister">Register Account</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="wholesaleLoginForm">
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 0.88rem; color: var(--color-text-muted);">
+              Access your wholesale discounted pricing, custom MOQs, and consolidated invoices.
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="loginIdentifier">Email or 10-digit Mobile <span class="req">*</span></label>
+            <input type="text" id="loginIdentifier" class="form-input" placeholder="marco@bellanapoli.in or 9876543210" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="loginPassword">Password <span class="req">*</span></label>
+            <input type="password" id="loginPassword" class="form-input" placeholder="••••••••" required>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <a href="#" id="linkForgotPassword" style="font-size: 0.82rem; color: var(--color-primary); font-weight: 600;">Forgot Password?</a>
+            <span style="font-size: 0.78rem; color: var(--color-text-subtle);">Attempts rate-limited</span>
+          </div>
+
+          <button type="submit" class="btn-primary" id="btnLoginSubmit" style="width: 100%; min-height: 48px;">
+            Log In to Portal
+          </button>
+          
+          <div style="background:var(--color-surface-alt);border-radius:var(--radius-sm);padding:10px 14px;margin-top:16px;font-size:0.8rem;color:var(--color-text-muted);">
+            💡 <strong>Demo Account:</strong> Mobile: <code>9876543210</code> | Password: <code>password123</code>
+          </div>
+        </form>
+
+        <!-- REGISTER FORM (Blueprint 3.8: active immediately, no approval) -->
+        <form id="wholesaleRegisterForm" style="display: none;">
+          <div style="margin-bottom: 16px;">
+            <p style="font-size: 0.85rem; color: var(--color-text-muted);">
+              Instant B2B registration. Accounts are active immediately with no waiting period.
+            </p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="regShopName">Pizzeria / Shop Name <span class="req">*</span></label>
+            <input type="text" id="regShopName" class="form-input" placeholder="e.g. Crust & Craft Pizzeria" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="regOwnerName">Owner / Manager Name <span class="req">*</span></label>
+            <input type="text" id="regOwnerName" class="form-input" placeholder="e.g. Vikram Singhania" required>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="regMobile">Mobile Number <span class="req">*</span></label>
+              <input type="tel" id="regMobile" class="form-input" placeholder="10-digit mobile" maxlength="10" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="regEmail">Email Address <span class="req">*</span></label>
+              <input type="email" id="regEmail" class="form-input" placeholder="chef@pizzeria.com" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="regAddress">Shop Delivery Address <span class="req">*</span></label>
+            <textarea id="regAddress" class="form-textarea" placeholder="Full shop address including landmark & city" required></textarea>
+          </div>
+
+          <div class="form-row-2col">
+            <div class="form-group">
+              <label class="form-label" for="regState">State <span class="req">*</span></label>
+              <input type="text" id="regState" class="form-input" value="Karnataka" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="regGSTIN">GSTIN <span style="font-size:0.75rem;color:var(--color-text-subtle);">(Optional)</span></label>
+              <input type="text" id="regGSTIN" class="form-input" placeholder="29AAAAA0000A1Z5">
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="regPassword">Set Password <span class="req">*</span></label>
+            <input type="password" id="regPassword" class="form-input" placeholder="At least 6 characters" required>
+          </div>
+
+          <button type="submit" class="btn-primary" id="btnRegisterSubmit" style="width: 100%; min-height: 48px; margin-top: 6px;">
+            Activate Account & Enter
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- DASHBOARD VIEW: LOGGED IN (Blueprint 3.9) -->
+    <div id="dashboardView" style="display: none;">
+      
+      <!-- Welcome Header Banner -->
+      <div class="dashboard-header-card">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <span class="wholesale-tag-badge">Wholesale Active</span>
+            <span style="font-size:0.8rem;color:var(--color-stock-in);font-weight:700;">● Verified Account</span>
+          </div>
+          <h1 class="font-heading" id="dashShopName" style="font-size: 1.6rem; margin-bottom: 4px;">Pizzeria</h1>
+          <p id="dashOwnerMeta" style="font-size: 0.9rem; color: var(--color-text-muted);">Owner: Marco Rossi</p>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:10px;">
+          <button class="btn-primary" id="btnQuickReorderLast">
+            ⚡ Quick Re-order Last Order
+          </button>
+          <a href="/?wholesale=true" class="btn-whatsapp" id="btnBrowseWholesaleCatalog">
+            Browse Wholesale Catalog
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Last Order Card -->
+      <div class="checkout-card" id="lastOrderCard" style="margin-bottom: 24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--color-border);padding-bottom:12px;margin-bottom:16px;">
+          <div>
+            <span style="font-size:0.75rem;text-transform:uppercase;color:var(--color-primary);font-weight:800;">Last Batch Ordered</span>
+            <h3 class="font-heading" id="lastOrderNo" style="font-size:1.15rem;">BB-900123</h3>
+          </div>
+          <span class="stock-badge badge-in-stock" id="lastOrderStatus">Delivered</span>
+        </div>
+
+        <div id="lastOrderItemsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;font-size:0.9rem;"></div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px dashed var(--color-border);">
+          <div>
+            <span style="font-size:0.8rem;color:var(--color-text-muted);">Order Total:</span>
+            <strong id="lastOrderGrandTotal" style="font-family:var(--font-family-display);font-size:1.15rem;margin-left:6px;">₹1,200</strong>
+          </div>
+          <button class="btn-primary" id="btnRepeatLastOrder" style="padding:6px 18px;min-height:38px;">
+            Repeat This Order
+          </button>
+        </div>
+      </div>
+
+      <!-- Monthly Invoices & Statements (Blueprint 3.12 & Test R5) -->
+      <div class="checkout-card" style="margin-bottom: 24px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div>
+            <h3 class="font-heading" style="font-size:1.15rem;margin-bottom:2px;">Invoices & Monthly Statements</h3>
+            <p style="font-size:0.82rem;color:var(--color-text-muted);">Download consolidated statement for a chosen month (PDF and Excel/CSV). Confidential to your account.</p>
+          </div>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-top:12px;">
+          <select id="selectStatementMonth" class="form-input" style="max-width:200px;min-height:38px;padding:6px 12px;font-size:0.88rem;">
+            <option value="October 2026">October 2026</option>
+            <option value="November 2026">November 2026</option>
+            <option value="All">All Months</option>
+          </select>
+
+          <button class="btn-primary" id="btnDownloadStatementPdf" style="padding:6px 16px;min-height:38px;font-size:0.88rem;">
+            📥 Download Statement (PDF)
+          </button>
+          
+          <button class="btn-wholesale-link" id="btnDownloadStatementCsv" style="padding:6px 16px;min-height:38px;font-size:0.88rem;">
+            📊 Download Excel / CSV
+          </button>
+        </div>
+      </div>
+
+      <!-- Order History (Blueprint 3.11) -->
+      <div class="checkout-card">
+        <h3 class="font-heading" style="font-size:1.25rem;margin-bottom:16px;">Your Wholesale Order History</h3>
+        
+        <div style="overflow-x:auto;">
+          <table class="orders-table">
+            <thead>
+              <tr>
+                <th>Order #</th>
+                <th>Date</th>
+                <th>Items</th>
+                <th>Amount</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="ordersTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Scripts -->
+  <script src="/js/api.js"></script>
+  <script src="/js/cart.js"></script>
+  <script src="/js/wholesale.js"></script>
+</body>
+</html>
