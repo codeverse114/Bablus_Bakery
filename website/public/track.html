@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Track Order | Backrey Bases</title>
+  <meta name="description" content="Track your artisanal pizza bases and burger buns order delivery status.">
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/styles/theme.css">
+  <link rel="stylesheet" href="/styles/main.css">
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header class="site-header">
+    <div class="container">
+      <div class="header-inner">
+        <a href="/" class="brand-logo" aria-label="Backrey Bases Home">
+          <div class="brand-icon-wrap" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"></path>
+              <circle cx="12" cy="12" r="2"></circle>
+            </svg>
+          </div>
+          <div class="brand-text">
+            <span class="brand-title">Backrey Bases</span>
+            <span class="brand-subtitle">Order Tracking</span>
+          </div>
+        </a>
+
+        <div class="header-actions">
+          <a href="/" class="btn-wholesale-link">← Storefront</a>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container" style="padding-top: 30px; padding-bottom: 60px;">
+    <div style="max-width: 600px; margin: 0 auto;">
+      
+      <!-- Lookup Card (Blueprint 3.7: Input order number plus mobile number - no login for guests) -->
+      <div class="checkout-card" id="trackLookupCard">
+        <h1 class="font-heading" style="font-size: 1.4rem; margin-bottom: 8px;">Track Your Order</h1>
+        <p style="font-size: 0.88rem; color: var(--color-text-muted); margin-bottom: 20px;">
+          Enter your order number and 10-digit mobile number to view live kitchen and delivery status.
+        </p>
+
+        <form id="trackForm" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="trackOrderNo">Order Number <span class="req">*</span></label>
+            <input type="text" id="trackOrderNo" class="form-input" placeholder="e.g. BB-123456" required>
+            <span class="inline-error-msg" id="errTrackOrderNo">Please enter your order number.</span>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="trackPhone">Mobile Number (10 digits) <span class="req">*</span></label>
+            <input type="tel" id="trackPhone" class="form-input" placeholder="e.g. 9876543210" maxlength="10" required>
+            <span class="inline-error-msg" id="errTrackPhone">Enter a 10-digit mobile number.</span>
+          </div>
+
+          <button type="submit" class="btn-primary" id="btnSubmitTrack" style="width: 100%; min-height: 48px; margin-top: 10px;">
+            Find Order
+          </button>
+        </form>
+      </div>
+
+      <!-- Result Card (Timeline & Details) -->
+      <div class="checkout-card" id="trackResultCard" style="display: none; margin-top: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--color-border); padding-bottom: 12px; margin-bottom: 18px;">
+          <div>
+            <span style="font-size: 0.75rem; text-transform: uppercase; color: var(--color-primary); font-weight: 800;">Order Status</span>
+            <h2 class="font-heading" id="resOrderNo" style="font-size: 1.25rem;">BB-123456</h2>
+          </div>
+          <span class="stock-badge badge-in-stock" id="resStatusBadge">Paid</span>
+        </div>
+
+        <!-- 4-Step Status Pipeline (Blueprint 3.7: Paid, Packed, Out for delivery, Delivered) -->
+        <div class="tracking-pipeline" id="trackingPipeline">
+          <div class="tracking-step" id="stepPaid">
+            <div class="step-marker">✓</div>
+            <div class="step-info">
+              <span class="step-name">Paid & Confirmed</span>
+              <span class="step-time" id="timePaid">Just now</span>
+            </div>
+          </div>
+          <div class="tracking-step" id="stepPacked">
+            <div class="step-marker">2</div>
+            <div class="step-info">
+              <span class="step-name">Packed in Oven Bakery</span>
+              <span class="step-time" id="timePacked">Baking & sealing batch</span>
+            </div>
+          </div>
+          <div class="tracking-step" id="stepOut">
+            <div class="step-marker">3</div>
+            <div class="step-info">
+              <span class="step-name">Out for Delivery</span>
+              <span class="step-time" id="timeOut">Assigned to courier</span>
+            </div>
+          </div>
+          <div class="tracking-step" id="stepDelivered">
+            <div class="step-marker">4</div>
+            <div class="step-info">
+              <span class="step-name">Delivered</span>
+              <span class="step-time" id="timeDelivered">Estimated tomorrow</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Order Summary Box -->
+        <div style="background: var(--color-surface-alt); border-radius: var(--radius-md); padding: 16px; margin-top: 24px;">
+          <h3 class="font-heading" style="font-size: 0.95rem; margin-bottom: 10px;">Items in this Order</h3>
+          <div id="resItemsList" style="display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem;"></div>
+
+          <div style="display: flex; justify-content: space-between; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--color-border); font-weight: 800;">
+            <span>Grand Total</span>
+            <span id="resGrandTotal" style="font-family: var(--font-family-display);">₹0</span>
+          </div>
+        </div>
+
+        <button class="btn-wholesale-link" id="btnTrackAnother" style="width: 100%; margin-top: 18px; text-align: center;">
+          Track Another Order
+        </button>
+      </div>
+
+    </div>
+  </main>
+
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="/js/api.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const trackForm = document.getElementById('trackForm');
+      const trackOrderNo = document.getElementById('trackOrderNo');
+      const trackPhone = document.getElementById('trackPhone');
+      const errTrackOrderNo = document.getElementById('errTrackOrderNo');
+      const errTrackPhone = document.getElementById('errTrackPhone');
+      const trackLookupCard = document.getElementById('trackLookupCard');
+      const trackResultCard = document.getElementById('trackResultCard');
+      const resOrderNo = document.getElementById('resOrderNo');
+      const resStatusBadge = document.getElementById('resStatusBadge');
+      const resItemsList = document.getElementById('resItemsList');
+      const resGrandTotal = document.getElementById('resGrandTotal');
+      const timePaid = document.getElementById('timePaid');
+      const btnTrackAnother = document.getElementById('btnTrackAnother');
+
+      // Auto-populate from URL query params if present
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlOrder = urlParams.get('orderNo');
+      const urlPhone = urlParams.get('phone');
+
+      if (urlOrder) trackOrderNo.value = urlOrder;
+      if (urlPhone) trackPhone.value = urlPhone;
+
+      if (urlOrder && urlPhone) {
+        performTrack(urlOrder, urlPhone);
+      }
+
+      trackPhone.addEventListener('input', () => {
+        trackPhone.value = trackPhone.value.replace(/\D/g, '').slice(0, 10);
+      });
+
+      trackForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const orderNo = trackOrderNo.value.trim();
+        const phone = trackPhone.value.replace(/\D/g, '');
+
+        let valid = true;
+        if (!orderNo) {
+          errTrackOrderNo.style.display = 'block';
+          valid = false;
+        } else {
+          errTrackOrderNo.style.display = 'none';
+        }
+
+        if (!phone || phone.length !== 10) {
+          errTrackPhone.style.display = 'block';
+          valid = false;
+        } else {
+          errTrackPhone.style.display = 'none';
+        }
+
+        if (valid) {
+          performTrack(orderNo, phone);
+        }
+      });
+
+      async function performTrack(orderNo, phone) {
+        try {
+          const res = await window.API.trackOrder(orderNo, phone);
+          const order = res.order;
+
+          resOrderNo.textContent = `Order #${order.orderNo}`;
+          resStatusBadge.textContent = order.status || 'Paid';
+          resGrandTotal.textContent = window.API.formatINR(order.grand_total);
+
+          // Update timeline steps (Blueprint 3.7: Paid, Packed, Out for delivery, Delivered)
+          const steps = order.statusSteps || [];
+          const stepPaidEl = document.getElementById('stepPaid');
+          const stepPackedEl = document.getElementById('stepPacked');
+          const stepOutEl = document.getElementById('stepOut');
+          const stepDeliveredEl = document.getElementById('stepDelivered');
+
+          stepPaidEl.className = 'tracking-step done';
+          timePaid.textContent = new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          const isPacked = steps.find(s => s.label === 'Packed')?.done;
+          const isOut = steps.find(s => s.label === 'Out for delivery')?.done;
+          const isDelivered = steps.find(s => s.label === 'Delivered')?.done;
+
+          stepPackedEl.className = `tracking-step ${isPacked ? 'done' : ''}`;
+          stepOutEl.className = `tracking-step ${isOut ? 'done' : ''}`;
+          stepDeliveredEl.className = `tracking-step ${isDelivered ? 'done' : ''}`;
+
+          resItemsList.innerHTML = '';
+          (order.items || []).forEach(item => {
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.justifyContent = 'space-between';
+            row.innerHTML = `
+              <span>${item.name} (${item.pack_size || ''}) × ${item.quantity}</span>
+              <strong>${window.API.formatINR(item.total)}</strong>
+            `;
+            resItemsList.appendChild(row);
+          });
+
+          trackResultCard.style.display = 'block';
+        } catch (err) {
+          alert(err.message || 'Could not find order. Please verify order number and phone.');
+        }
+      }
+
+      btnTrackAnother.addEventListener('click', () => {
+        trackResultCard.style.display = 'none';
+        trackOrderNo.value = '';
+        trackPhone.value = '';
+      });
+    });
+  </script>
+</body>
+</html>
