@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Backrey Bases - Baker & Admin Operations</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/styles/admin.css">
+</head>
+<body>
+
+  <!-- ==============================================
+       1. LOGIN VIEW
+       ============================================== -->
+  <div id="loginView" class="login-container">
+    <div class="login-card">
+      <div class="login-header">
+        <span class="brand-badge">Commercial Bakery OPS</span>
+        <h1>Backrey Bases</h1>
+        <p>Admin & Commercial Kitchen Operations Portal</p>
+      </div>
+
+      <div id="loginAlert" class="alert-box alert-danger" style="display: none;"></div>
+
+      <form id="adminLoginForm">
+        <div class="form-group">
+          <label for="adminEmail">Allow-listed Email</label>
+          <input type="email" id="adminEmail" class="form-input" placeholder="e.g. owner@backreybases.in" required>
+        </div>
+        <div class="form-group">
+          <label for="adminPassword">Password</label>
+          <input type="password" id="adminPassword" class="form-input" placeholder="••••••••••••" required>
+        </div>
+        <button type="submit" class="btn btn-primary btn-block" id="btnLoginSubmit">
+          Sign In to Operations
+        </button>
+      </form>
+
+      <div class="demo-credentials">
+        <h4>Demo Quick Access</h4>
+        <div class="demo-chips">
+          <button type="button" class="demo-chip" onclick="quickFillLogin('owner@backreybases.in', 'adminpassword123')">
+            <strong>👑 Head Baker / Owner</strong> (Full Access: Reports, Prices, Staff)
+          </button>
+          <button type="button" class="demo-chip" onclick="quickFillLogin('staff@backreybases.in', 'staffpassword123')">
+            <strong>👨‍🍳 Bakery Staff</strong> (Restricted: Orders, Stock, POS only)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       2. AUTHENTICATED APP SHELL
+       ============================================== -->
+  <div id="appShell" class="app-container" style="display: none;">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <span>🥖</span> Backrey Bases
+        </div>
+        <div class="sidebar-tagline">Bakery Operations Console</div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a class="nav-link active" data-tab="dashboard" onclick="switchTab('dashboard')">
+          <span>📊</span> Dashboard
+        </a>
+        <a class="nav-link" data-tab="orders" onclick="switchTab('orders')">
+          <span>📦</span> Orders
+          <span class="nav-badge" id="badgePendingOrders">0</span>
+        </a>
+        <a class="nav-link" data-tab="pos" onclick="switchTab('pos')">
+          <span>⚡</span> POS / Walk-in Sale
+        </a>
+        <a class="nav-link" data-tab="inventory" onclick="switchTab('inventory')">
+          <span>📋</span> Inventory & Log
+        </a>
+        <a class="nav-link" data-tab="products" onclick="switchTab('products')">
+          <span>🍞</span> Products Catalog
+        <a class="nav-link" data-tab="invoices" onclick="switchTab('invoices')">
+          <span>📄</span> Invoices (Tax)
+        </a>
+        <!-- Owner-only Tabs -->
+        <a class="nav-link owner-only" data-tab="wholesale" onclick="switchTab('wholesale')">
+          <span>🏬</span> Wholesale Clients
+        </a>
+        <a class="nav-link owner-only" data-tab="reports" onclick="switchTab('reports')">
+          <span>📈</span> Reports & Exports
+        </a>
+        <a class="nav-link owner-only" data-tab="settings" onclick="switchTab('settings')">
+          <span>⚙️</span> Settings & Staff
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-profile">
+          <div class="user-info">
+            <div class="user-name" id="currentUserName">Head Baker</div>
+            <span class="user-role-badge role-owner" id="currentUserRole">OWNER</span>
+          </div>
+          <button class="btn-logout" title="Sign Out" onclick="logoutAdmin()">🚪</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-wrapper">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h2 class="topbar-title" id="pageTitle">Operations Dashboard</h2>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-secondary btn-sm" onclick="switchTab('pos')">
+            <span>⚡</span> Quick POS Sale
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="openAddProductModal()">
+            <span>+</span> Add Product
+          </button>
+          <a href="/" target="_blank" class="btn btn-outline btn-sm">
+            <span>🌐</span> Customer Storefront
+          </a>
+        </div>
+      </header>
+
+      <main class="content-body">
+        
+        <!-- ==============================================
+             TAB 1: DASHBOARD
+             ============================================== -->
+        <section id="tab-dashboard" class="tab-pane active">
+          <!-- GST Warning Banner -->
+          <div class="alert-box alert-warning" id="gstAlertBanner">
+            <span>⚠️</span>
+            <div>
+              <strong>GST Registration Pending:</strong> All product and wholesale prices are currently recorded at 0% tax under Section 11 on-hold policy.
+            </div>
+          </div>
+
+          <!-- Metrics Grid -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <span class="metric-label">Today's Orders</span>
+              <div class="metric-value" id="metricTodayOrders">0</div>
+              <span class="metric-subtext text-muted">Customer & POS sales</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Today's Revenue</span>
+              <div class="metric-value" id="metricTodayRevenue">₹0</div>
+              <span class="metric-subtext text-muted">Confirmed collected</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Pending Packing</span>
+              <div class="metric-value" id="metricPendingPacking">0</div>
+              <span class="metric-subtext text-muted">Needs kitchen dispatch</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Low Stock Alerts</span>
+              <div class="metric-value" id="metricLowStock" style="color: var(--warning);">0</div>
+              <span class="metric-subtext text-muted">&lt; 20 units remaining</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Out of Stock</span>
+              <div class="metric-value" id="metricOutOfStock" style="color: var(--danger);">0</div>
+              <span class="metric-subtext text-muted">Zero inventory</span>
+            </div>
+          </div>
+
+          <!-- Recent Orders Card -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Recent Kitchen Orders</h3>
+              <button class="btn btn-outline btn-sm" onclick="switchTab('orders')">View All Orders →</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Order No</th>
+                    <th>Customer</th>
+                    <th>Channel</th>
+                    <th>Grand Total</th>
+                    <th>Status</th>
+                    <th>Date / Time</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="recentOrdersTbody">
+                  <tr><td colspan="7" style="text-align:center; padding: 20px;">Loading orders...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 2: ORDERS
+             ============================================== -->
+        <section id="tab-orders" class="tab-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <div style="display:flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                <h3 class="card-title">All Customer & POS Orders</h3>
+                <select id="orderStatusFilter" class="form-select" style="width: auto;" onchange="loadOrders()">
+                  <option value="All">All Statuses</option>
+                  <option value="Paid">Paid (Pending Pack)</option>
+                  <option value="Packed">Packed</option>
+                  <option value="Out for delivery">Out for delivery</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
+                <select id="orderChannelFilter" class="form-select" style="width: auto;" onchange="loadOrders()">
+                  <option value="All">All Channels</option>
+                  <option value="Online">Online Delivery</option>
+                  <option value="In-shop">In-shop POS</option>
+                  <option value="Wholesale">Wholesale Commercial</option>
+                </select>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="loadOrders()">🔄 Refresh</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Order #</th>
+                    <th>Customer Info</th>
+                    <th>Channel</th>
+                    <th>Items Summary</th>
+                    <th>Total</th>
+                    <th>Status Stepper</th>
+                    <th>Documents & Phone</th>
+                  </tr>
+                </thead>
+                <tbody id="ordersTbody">
+                  <tr><td colspan="7" style="text-align:center; padding: 20px;">Loading orders...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 3: POS / WALK-IN SALES
+             ============================================== -->
+        <section id="tab-pos" class="tab-pane" style="display:none;">
+          <div class="pos-layout">
+            <!-- Left: Products Grid -->
+            <div>
+              <div class="card" style="margin-bottom: 16px;">
+                <div class="card-header">
+                  <h3 class="card-title">Select Items for Counter / Phone Order</h3>
+                  <input type="text" id="posSearchInput" class="form-input" style="max-width: 260px;" placeholder="Search bases, buns, bread..." oninput="renderPosCatalog()">
+                </div>
+                <div class="card-body">
+                  <div class="pos-products-grid" id="posProductsGrid">
+                    <!-- Dynamic POS items -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: POS Register & Cart -->
+            <div class="pos-cart-panel">
+              <h3 style="font-size: 1.1rem; font-weight: 700; margin-bottom: 12px;">Counter POS Sale</h3>
+
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label style="font-size: 0.8rem;">Customer Name (Optional)</label>
+                <input type="text" id="posCustomerName" class="form-input" placeholder="e.g. Cafe Milano / Walk-in">
+              </div>
+
+              <div class="form-group" style="margin-bottom: 10px;">
+                <label style="font-size: 0.8rem;">Customer Phone (Optional)</label>
+                <input type="tel" id="posCustomerMobile" class="form-input" placeholder="10-digit mobile">
+              </div>
+
+              <div class="pos-cart-items" id="posCartItemsList">
+                <div style="text-align: center; color: var(--muted); padding: 30px 0;">No items added yet.<br>Click any product on the left to add.</div>
+              </div>
+
+              <div style="margin-bottom: 16px;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 4px;">
+                  <span>Subtotal:</span>
+                  <span id="posSubtotal">₹0</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 1.15rem; font-weight: 800; color: var(--primary);">
+                  <span>Total Amount:</span>
+                  <span id="posGrandTotal">₹0</span>
+                </div>
+              </div>
+
+              <div class="form-group" style="margin-bottom: 16px;">
+                <label style="font-size: 0.8rem;">Payment Mode</label>
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                  <button type="button" class="btn btn-outline btn-sm pos-pay-mode active" onclick="setPosPaymentMode('Cash', this)">💵 Cash</button>
+                  <button type="button" class="btn btn-outline btn-sm pos-pay-mode" onclick="setPosPaymentMode('UPI', this)">📱 UPI</button>
+                  <button type="button" class="btn btn-outline btn-sm pos-pay-mode" onclick="setPosPaymentMode('Card', this)">💳 Card</button>
+                </div>
+              </div>
+
+              <button class="btn btn-success btn-block" id="btnRecordPosSale" onclick="recordPosSale()">
+                <span>⚡</span> Record Sale & Deduct Stock
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 4: INVENTORY & AUDIT LOG
+             ============================================== -->
+        <section id="tab-inventory" class="tab-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Live Commercial Stock Levels</h3>
+              <div style="display: flex; gap: 8px;">
+                <button class="btn btn-secondary btn-sm" onclick="loadInventory()">🔄 Refresh Stock</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Product</th>
+                    <th>Category</th>
+                    <th>Pack Size</th>
+                    <th>Current Stock</th>
+                    <th>Status Badge</th>
+                    <th>Quick Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="inventoryTbody">
+                  <tr><td colspan="6" style="text-align: center; padding: 20px;">Loading stock levels...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Append-Only Audit Trail (Blueprint 3.5 & Test A8) -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Stock Audit Trail (Append-Only Log)</h3>
+              <span class="badge" style="background:#FAF6F0; color:var(--muted);">Tamper-proof Log</span>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Timestamp</th>
+                    <th>Product</th>
+                    <th>Event Type</th>
+                    <th>Change</th>
+                    <th>Prev → New</th>
+                    <th>Reason / Notes</th>
+                    <th>Updated By</th>
+                  </tr>
+                </thead>
+                <tbody id="inventoryLogTbody">
+                  <tr><td colspan="7" style="text-align: center; padding: 20px;">Loading audit logs...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 5: PRODUCTS CATALOG
+             ============================================== -->
+        <section id="tab-products" class="tab-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Bakery Products & Crusts</h3>
+              <button class="btn btn-primary btn-sm" onclick="openAddProductModal()">+ Add New Product</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Image</th>
+                    <th>Code / SKU</th>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Retail Price</th>
+                    <th>Wholesale Price</th>
+                    <th>Stock</th>
+                    <th>Storefront Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="productsTbody">
+                  <tr><td colspan="9" style="text-align: center; padding: 20px;">Loading product catalog...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 6: WHOLESALE CLIENTS (Owner Only)
+             ============================================== -->
+        <section id="tab-wholesale" class="tab-pane owner-only-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Registered Wholesale Accounts & Custom Rates</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Shop Name</th>
+                    <th>Owner Contact</th>
+                    <th>GSTIN</th>
+                    <th>State / City</th>
+                    <th>Total Orders</th>
+                    <th>Total Spend</th>
+                    <th>Price Overrides</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="wholesaleTbody">
+                  <tr><td colspan="8" style="text-align: center; padding: 20px;">Loading wholesale accounts...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+               <!-- ==============================================
+             TAB 5.5: INVOICES (TAX & SEQUENTIAL)
+             ============================================== -->
+        <section id="tab-invoices" class="tab-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Computer-Generated Tax Invoices (Sequential, No Gaps)</h3>
+              <button class="btn btn-secondary btn-sm" onclick="loadInvoices()">🔄 Refresh</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Invoice No</th>
+                    <th>Date</th>
+                    <th>Customer Name</th>
+                    <th>Channel</th>
+                    <th>Grand Total</th>
+                    <th>GST Tax</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="invoicesTbody">
+                  <tr><td colspan="7" style="text-align: center; padding: 20px;">Loading tax invoices...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 7: REPORTS & EXPORTS (Owner Only)
+             ============================================== -->
+        <section id="tab-reports" class="tab-pane owner-only-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Monthly Consolidated Sales & Tax Reports</h3>
+              <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button class="btn btn-success btn-sm" onclick="downloadConsolidatedCSV()">
+                  <span>📥</span> Consolidated CSV
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="downloadInvoicesZip()">
+                  <span>📦</span> Monthly Invoices ZIP
+                </button>
+                <a href="/api/admin/qr/poster" target="_blank" class="btn btn-outline btn-sm">
+                  <span>🖨️</span> Counter QR Poster (PDF)
+                </a>
+              </div>
+            </div>
+            <div class="card-body">
+              <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label style="font-size:0.8rem;">Filter Start Date</label>
+                  <input type="date" id="reportStartDate" class="form-input" style="padding:6px 10px;">
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label style="font-size:0.8rem;">Filter End Date</label>
+                  <input type="date" id="reportEndDate" class="form-input" style="padding:6px 10px;">
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="loadReports()">Apply Date Filter</button>
+              </div>
+
+              <div class="metrics-grid" style="margin-bottom: 0;">
+                <div class="metric-card">
+                  <span class="metric-label">Filtered Orders</span>
+                  <div class="metric-value" id="reportTotalOrders">0</div>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Filtered Revenue</span>
+                  <div class="metric-value" id="reportTotalRevenue">₹0</div>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">In-Shop Sales</span>
+                  <div class="metric-value" id="reportInShopOrders">0</div>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Wholesale Volume</span>
+                  <div class="metric-value" id="reportWholesaleOrders">0</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 8: SETTINGS & STAFF (Owner Only)
+             ============================================== -->
+        <section id="tab-settings" class="tab-pane owner-only-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Bakery Business Settings</h3>
+            </div>
+            <div class="card-body">
+              <form id="settingsForm" onsubmit="saveSettings(event)" style="max-width: 600px;">
+                <div class="form-group">
+                  <label>Bakery Name</label>
+                  <input type="text" id="settingBusinessName" class="form-input" required>
+                </div>
+                <div class="form-group">
+                  <label>Bakery Kitchen Address</label>
+                  <textarea id="settingBusinessAddress" class="form-textarea" rows="2" required></textarea>
+                </div>
+                <div class="form-group">
+                  <label>WhatsApp Contact & Notifications Number</label>
+                  <input type="tel" id="settingWhatsApp" class="form-input" value="8219775396" required>
+                  <small style="color: var(--muted);">Direct click-to-chat customer contact: 8219775396</small>
+                </div>
+                <div class="form-group">
+                  <label>Cart Hold Reservation Duration (Minutes)</label>
+                  <input type="number" id="settingHoldMinutes" class="form-input" min="1" max="60" value="10" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Staff Accounts Manager -->
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Staff Access Accounts</h3>
+              <button class="btn btn-outline btn-sm" onclick="openAddStaffModal()">+ Add Staff Account</button>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Email</th>
+                    <th>Role</th>
+                    <th>Permissions</th>
+                  </tr>
+                </thead>
+                <tbody id="staffTbody">
+                  <tr><td colspan="4" style="text-align: center; padding: 20px;">Loading staff...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- ==============================================
+       MODALS
+       ============================================== -->
+  
+  <!-- Add/Edit Product Modal -->
+  <div id="productModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title" id="productModalTitle">Add New Product</h3>
+        <button class="modal-close" onclick="closeModal('productModal')">&times;</button>
+      </div>
+      <form id="productForm" onsubmit="saveProduct(event)">
+        <div class="modal-body">
+          <input type="hidden" id="modalProductId">
+          <div class="form-group">
+            <label>Product Name *</label>
+            <input type="text" id="modalProductName" class="form-input" placeholder="e.g. Sourdough Pizza Crust (12-inch)" required>
+          </div>
+          <div class="form-group">
+            <label>SKU / Product Code *</label>
+            <input type="text" id="modalProductCode" class="form-input" placeholder="PB-SOURDOUGH-12" required>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>Category *</label>
+              <select id="modalProductCategory" class="form-select" required>
+                <option value="Pizza bases">Pizza bases</option>
+                <option value="Burger bases">Burger bases</option>
+                <option value="Bread">Bread</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Pack Size *</label>
+              <input type="text" id="modalProductPackSize" class="form-input" placeholder="Pack of 2" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>Retail Price (₹) *</label>
+              <input type="number" id="modalProductRetailPrice" class="form-input" min="1" step="0.5" required>
+            </div>
+            <div class="form-group">
+              <label>Wholesale Price (₹) *</label>
+              <input type="number" id="modalProductWholesalePrice" class="form-input" min="1" step="0.5" required>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>Initial / Current Stock *</label>
+              <input type="number" id="modalProductStock" class="form-input" min="0" required>
+            </div>
+            <div class="form-group">
+              <label>Wholesale MOQ</label>
+              <input type="number" id="modalProductMoq" class="form-input" min="1" value="10">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Product Photo / Image Path</label>
+            <input type="text" id="modalProductImage" class="form-input" placeholder="/images/sourdough-pizza-base.jpg" value="/images/sourdough-pizza-base.jpg">
+            <small style="color: var(--muted);">Supports camera photo capture from phone app or local file URL.</small>
+          </div>
+          <div class="form-group">
+            <label>Description & Tasting Notes</label>
+            <textarea id="modalProductDescription" class="form-textarea" rows="2" placeholder="Wood-fired stone baked with wild yeast..."></textarea>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('productModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Product</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Restock Modal -->
+  <div id="restockModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Restock Product</h3>
+        <button class="modal-close" onclick="closeModal('restockModal')">&times;</button>
+      </div>
+      <form id="restockForm" onsubmit="submitRestock(event)">
+        <div class="modal-body">
+          <input type="hidden" id="restockProductId">
+          <p id="restockProductName" style="font-weight: 700; margin-bottom: 16px; color: var(--dark);"></p>
+          <div class="form-group">
+            <label>Quantity to Add (+units) *</label>
+            <input type="number" id="restockQuantity" class="form-input" min="1" placeholder="e.g. 50" required>
+          </div>
+          <div class="form-group">
+            <label>Batch / Oven Notes (Optional)</label>
+            <input type="text" id="restockNotes" class="form-input" placeholder="e.g. Morning deck oven batch #4">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('restockModal')">Cancel</button>
+          <button type="submit" class="btn btn-success">Add to Stock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Manual Stock Correction Modal (Reason Mandatory) -->
+  <div id="adjustModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Manual Stock Correction</h3>
+        <button class="modal-close" onclick="closeModal('adjustModal')">&times;</button>
+      </div>
+      <form id="adjustForm" onsubmit="submitAdjustStock(event)">
+        <div class="modal-body">
+          <input type="hidden" id="adjustProductId">
+          <p id="adjustProductName" style="font-weight: 700; margin-bottom: 16px; color: var(--dark);"></p>
+          <div class="form-group">
+            <label>Correct Physical Stock Count *</label>
+            <input type="number" id="adjustNewStock" class="form-input" min="0" placeholder="e.g. 24" required>
+          </div>
+          <div class="form-group">
+            <label>Mandatory Correction Reason *</label>
+            <textarea id="adjustReason" class="form-textarea" rows="2" placeholder="e.g. Damaged during proofing / Physical shelf count discrepancy" required></textarea>
+            <small style="color: var(--muted);">Reason is permanently recorded in the tamper-proof audit trail.</small>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('adjustModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Record Correction</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Wholesale Price Override Modal -->
+  <div id="overrideModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Set Wholesale Price Override</h3>
+        <button class="modal-close" onclick="closeModal('overrideModal')">&times;</button>
+      </div>
+      <form id="overrideForm" onsubmit="submitPriceOverride(event)">
+        <div class="modal-body">
+          <input type="hidden" id="overrideWholesalerId">
+          <p id="overrideShopName" style="font-weight: 700; margin-bottom: 16px; color: var(--dark);"></p>
+          <div class="form-group">
+            <label>Select Product *</label>
+            <select id="overrideProductSelect" class="form-select" required></select>
+          </div>
+          <div class="form-group">
+            <label>Custom Negotiated Rate (₹) *</label>
+            <input type="number" id="overridePriceInput" class="form-input" min="1" step="0.5" placeholder="e.g. 110" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('overrideModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Custom Rate</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Staff Modal -->
+  <div id="staffModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 class="modal-title">Create Staff Login</h3>
+        <button class="modal-close" onclick="closeModal('staffModal')">&times;</button>
+      </div>
+      <form id="staffForm" onsubmit="submitAddStaff(event)">
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Staff Name *</label>
+            <input type="text" id="staffName" class="form-input" placeholder="e.g. Ramesh Kumar" required>
+          </div>
+          <div class="form-group">
+            <label>Staff Email *</label>
+            <input type="email" id="staffEmail" class="form-input" placeholder="e.g. ramesh@backreybases.in" required>
+          </div>
+          <div class="form-group">
+            <label>Password *</label>
+            <input type="password" id="staffPassword" class="form-input" placeholder="••••••••••••" required>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select id="staffRole" class="form-select">
+              <option value="staff">Staff (Orders, Stock, POS only)</option>
+              <option value="owner">Owner (Full Access)</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('staffModal')">Cancel</button>
+          <button type="submit" class="btn btn-primary">Create Account</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPTS -->
+  <script src="/admin/js/admin.js"></script>
+</body>
+</html>
