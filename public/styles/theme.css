@@ -1,0 +1,67 @@
+/**
+ * BACKREY BASES - THEME CONFIGURATION
+ * Blueprint Section 7 & 10: Swappable Theme File
+ * All branding, palette, typography, and spacing tokens live here.
+ */
+
+:root {
+  /* Brand Core Palette */
+  --color-primary: #C05621;            /* Warm oven terracotta */
+  --color-primary-dark: #9C4215;       /* Deep baked crust */
+  --color-primary-light: #FEEBC8;      /* Warm golden tint */
+  --color-primary-subtle: #FFF8F0;     /* Silky pastry background */
+  
+  --color-accent: #D69E2E;             /* Golden wheat */
+  --color-accent-hover: #B7791F;
+
+  /* Neutrals */
+  --color-bg: #FAF7F2;                /* Warm stone-ground flour white */
+  --color-surface: #FFFFFF;           /* Crisp card surface */
+  --color-surface-alt: #F3ECE4;       /* Soft tray background */
+  
+  --color-text: #2D231E;              /* Rich dark roast coffee */
+  --color-text-muted: #6B5B52;        /* Toasted almond */
+  --color-text-subtle: #9C8C83;       /* Muted ash */
+  
+  --color-border: #E8DDD2;            /* Subtle crust border */
+  --color-border-hover: #D5C2B2;
+
+  /* Stock Status Colors */
+  --color-stock-in: #15803D;          /* Fresh green */
+  --color-stock-in-bg: #DCFCE7;
+  --color-stock-low: #D97706;         /* Warning amber */
+  --color-stock-low-bg: #FEF3C7;
+  --color-stock-out: #DC2626;         /* Out of stock red */
+  --color-stock-out-bg: #FEE2E2;
+
+  /* WhatsApp & Call Accent */
+  --color-whatsapp: #25D366;
+  --color-whatsapp-dark: #128C7E;
+
+  /* Typography */
+  --font-family-display: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-body: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  /* Sizing & Tap Targets (Mobile 360px optimized) */
+  --tap-target-min: 44px;
+  --header-height: 64px;
+  --bottom-bar-height: 68px;
+
+  /* Border Radii */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 9999px;
+
+  /* Elevation & Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(45, 35, 30, 0.05);
+  --shadow-md: 0 4px 14px -2px rgba(45, 35, 30, 0.08);
+  --shadow-lg: 0 10px 25px -3px rgba(45, 35, 30, 0.12);
+  --shadow-drawer: 0 -8px 30px rgba(45, 35, 30, 0.18);
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: 350ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}

@@ -1,0 +1,122 @@
+/* =========================================
+   BACKREY BASES - WHIRLPOOL MOTION & CATEGORY TILES
+   Built with 60fps transform & opacity only (Blueprint UI/UX Section 6)
+   ========================================= */
+
+/* Category Big Tiles (Section 2 & 5.1) */
+.category-tiles-section {
+  padding: 32px 0 16px;
+  background-color: var(--color-bg, #FFF8EC);
+}
+
+.category-tiles-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .category-tiles-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+}
+
+.category-tile-card {
+  background: #FFF;
+  border: 1.5px solid #F2D9A6;
+  border-radius: 16px;
+  padding: 16px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.category-tile-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(138, 75, 31, 0.12);
+  border-color: #8A4B1F;
+}
+
+.category-tile-img-wrapper {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  overflow: hidden;
+  margin-bottom: 12px;
+  border: 3px solid #F2D9A6;
+  box-shadow: 0 4px 10px rgba(45, 35, 30, 0.08);
+  transition: transform 0.3s ease;
+}
+
+.category-tile-card:hover .category-tile-img-wrapper {
+  transform: scale(1.06);
+}
+
+.category-tile-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.category-tile-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #2B1A10;
+  margin-bottom: 4px;
+}
+
+.category-tile-subtext {
+  font-size: 0.78rem;
+  color: #74645A;
+}
+
+/* =========================================
+   COUNT-UP STATS SECTION
+   ========================================= */
+.countup-strip {
+  padding: 40px 0;
+  background-color: #2B1A10;
+  color: #FFF8EC;
+  margin-top: -1px;
+}
+
+.countup-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  text-align: center;
+}
+
+@media (max-width: 600px) {
+  .countup-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.countup-item {
+  padding: 10px;
+}
+
+.countup-number {
+  font-family: 'Fraunces', serif;
+  font-size: 2.6rem;
+  font-weight: 800;
+  color: #D98E2B;
+  line-height: 1;
+}
+
+.countup-label {
+  font-size: 0.9rem;
+  color: #F2D9A6;
+  margin-top: 6px;
+  font-weight: 500;
+}
+
