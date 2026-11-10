@@ -13,10 +13,11 @@ app.use(express.urlencoded({ extended: true }));
 // Mount API and redirect routes
 app.use(routes);
 
-// Blueprint Test W8: Wholesaler opens admin URL -> Denied (403)
+// Blueprint Test W8: Wholesaler or section customer opens admin URL -> Denied (403)
 app.use('/admin', (req, res, next) => {
-  if (req.headers['x-wholesale-token']) {
-    return res.status(403).send('Access Denied: Wholesaler cannot access the admin portal.');
+  const auth = req.headers['authorization'] || '';
+  if (req.headers['x-wholesale-token'] || req.headers['x-customer-token'] || auth.includes('token-')) {
+    return res.status(403).send('Access Denied: Customer or wholesaler cannot access the admin portal.');
   }
   next();
 });

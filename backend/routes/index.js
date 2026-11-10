@@ -3,12 +3,16 @@ const router = express.Router();
 const customerRoutes = require('./customerRoutes');
 const wholesaleRoutes = require('./wholesaleRoutes');
 const adminRoutes = require('./adminRoutes');
+const authRoutes = require('./authRoutes');
 const store = require('../models/store');
 
 // In-Shop QR Code Redirect (Blueprint Milestone 8 / Section 3.14 & Test Q1/Q2)
 router.get('/qr', (req, res) => {
   res.redirect('/?tag=in-shop');
 });
+
+// Auth API (Blueprint Addendum Section 5 & 11)
+router.use('/api/auth', authRoutes);
 
 // Admin API
 router.use('/api/admin', adminRoutes);
@@ -26,10 +30,16 @@ router.post('/api/test/reset', (req, res) => {
 });
 
 router.post('/api/test/set-stock', (req, res) => {
-  const { productId, stock } = req.body;
+  const { productId, stock, locationId } = req.body;
   const p = store.products.find(item => item.id === productId);
   if (!p) return res.status(404).json({ success: false, error: 'Product not found' });
   p.stock = stock;
+  if (locationId) {
+    store.setLocationStock(locationId, productId, stock);
+  } else {
+    store.setLocationStock('loc-shop', productId, stock);
+    store.setLocationStock('loc-factory', productId, stock);
+  }
   res.json({ success: true, product: p });
 });
 

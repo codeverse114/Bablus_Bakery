@@ -2,20 +2,59 @@ const express = require('express');
 const router = express.Router();
 const store = require('../store');
 const invoice = require('../invoice');
+const authRoutes = require('../../backend/routes/authRoutes');
 
-// Middleware to extract wholesale session/token if present
+// Mount OTP Auth Routes
+router.use('/auth', authRoutes);
+
+// Middleware to extract customer or wholesale session/token if present
 function authMiddleware(req, res, next) {
-  const token = req.headers['x-wholesale-token'];
+  const token = req.headers['x-customer-token'] || req.headers['x-wholesale-token'] || req.headers['authorization'];
   if (token) {
-    const wholesaler = store.wholesalers.find(w => w.id === token || w.email === token || w.mobile === token);
-    if (wholesaler) {
-      req.user = { ...wholesaler, is_wholesale: true };
+    let cleanToken = token;
+    if (cleanToken.startsWith('Bearer ')) cleanToken = cleanToken.slice(7).trim();
+
+    const customer = store.customers.find(c => 
+      c.id === cleanToken || 
+      cleanToken.includes(c.id) || 
+      c.mobile === cleanToken || 
+      c.email === cleanToken
+    );
+
+    if (customer) {
+      req.customer = customer;
+      req.user = { 
+        ...customer, 
+        is_wholesale: customer.section !== 'regular',
+        is_customer: true
+      };
+    } else {
+      const wholesaler = store.wholesalers.find(w => w.id === cleanToken || w.email === cleanToken || w.mobile === cleanToken);
+      if (wholesaler) {
+        req.user = { ...wholesaler, is_wholesale: true };
+      }
     }
   }
   next();
 }
 
 router.use(authMiddleware);
+
+// GET /api/prices (Blueprint Addendum Section 11 & Test L7)
+router.get('/prices', (req, res) => {
+  const customer = req.customer || req.user || null;
+  const products = store.resolveAllPricesForCustomer(customer);
+  res.json({
+    success: true,
+    customer: customer ? {
+      id: customer.id,
+      name: customer.name,
+      section: customer.section,
+      price_list_id: customer.price_list_id
+    } : null,
+    products
+  });
+});
 
 /**
  * GET /api/products
@@ -440,10 +479,16 @@ router.post('/test/reset', (req, res) => {
 });
 
 router.post('/test/set-stock', (req, res) => {
-  const { productId, stock } = req.body;
+  const { productId, stock, locationId } = req.body;
   const p = store.products.find(item => item.id === productId);
   if (!p) return res.status(404).json({ success: false, error: 'Product not found' });
   p.stock = stock;
+  if (locationId) {
+    store.setLocationStock(locationId, productId, stock);
+  } else {
+    store.setLocationStock('loc-shop', productId, stock);
+    store.setLocationStock('loc-factory', productId, stock);
+  }
   res.json({ success: true, product: p });
 });
 
