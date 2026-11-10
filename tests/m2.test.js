@@ -9,13 +9,11 @@ const app = require('../server/server');
 const store = require('../server/store');
 
 let server;
-const PORT = 3001;
-const BASE_URL = `http://localhost:${PORT}/api`;
+const PIPE_NAME = `\\\\.\\pipe\\bb-m2-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
     const fullPath = `${path.startsWith('/') ? path : '/' + path}`;
-    const url = new URL(`/api${fullPath}`, `http://localhost:${PORT}`);
     const reqHeaders = { ...headers };
     let reqBody = null;
 
@@ -25,7 +23,12 @@ function request(method, path, body = null, headers = {}) {
       reqHeaders['Content-Length'] = Buffer.byteLength(reqBody);
     }
 
-    const req = http.request(url, { method, headers: reqHeaders }, (res) => {
+    const req = http.request({
+      socketPath: PIPE_NAME,
+      path: `/api${fullPath}`,
+      method,
+      headers: reqHeaders
+    }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -153,8 +156,9 @@ async function runTests() {
   // TEST G2: Add more than stock -> Blocked
   await test('G2', 'Add more than stock -> Blocked', async () => {
     store.reset();
+    await request('POST', '/test/set-stock', { productId: 'p2', stock: 5 });
     
-    // Product p2 only has 5 units in stock
+    // Product p2 now has 5 units in stock
     const p2 = store.products.find(p => p.id === 'p2');
     assert.ok(p2, 'Product p2 must exist');
     assert.strictEqual(p2.stock, 5);
@@ -183,7 +187,7 @@ async function runTests() {
 }
 
 // Start test server
-server = app.listen(PORT, async () => {
+server = app.listen(PIPE_NAME, async () => {
   try {
     await runTests();
   } catch (e) {

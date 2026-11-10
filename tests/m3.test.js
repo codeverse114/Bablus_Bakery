@@ -9,13 +9,11 @@ const app = require('../server/server');
 const store = require('../server/store');
 
 let server;
-const PORT = 3002;
-const BASE_URL = `http://localhost:${PORT}/api`;
+const PIPE_NAME = `\\\\.\\pipe\\bb-m3-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-function request(method, path, body = null, headers = {}) {
+function request(method, path, body = null, headers = {}, retries = 8) {
   return new Promise((resolve, reject) => {
     const fullPath = `${path.startsWith('/') ? path : '/' + path}`;
-    const url = new URL(`/api${fullPath}`, `http://localhost:${PORT}`);
     const reqHeaders = { ...headers };
     let reqBody = null;
 
@@ -25,7 +23,12 @@ function request(method, path, body = null, headers = {}) {
       reqHeaders['Content-Length'] = Buffer.byteLength(reqBody);
     }
 
-    const req = http.request(url, { method, headers: reqHeaders }, (res) => {
+    const req = http.request({
+      socketPath: PIPE_NAME,
+      path: `/api${fullPath}`,
+      method,
+      headers: reqHeaders
+    }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -38,7 +41,13 @@ function request(method, path, body = null, headers = {}) {
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      if ((err.code === 'ENOENT' || err.code === 'EPIPE') && retries > 0) {
+        setTimeout(() => request(method, path, body, headers, retries - 1).then(resolve, reject), 15 + Math.random() * 20);
+      } else {
+        reject(err);
+      }
+    });
     if (reqBody) req.write(reqBody);
     req.end();
   });
@@ -216,6 +225,7 @@ async function runTests() {
     store.reset();
     const p2 = store.products.find(p => p.id === 'p2');
     p2.stock = 5; // Exactly 5 units available
+    store.setLocationStock('loc-shop', 'p2', 5);
 
     // Simulate 20 concurrent buyers attempting to reserve 1 unit each
     const buyerPromises = [];
@@ -289,7 +299,7 @@ async function runTests() {
 }
 
 // Start test server
-server = app.listen(PORT, async () => {
+server = app.listen(PIPE_NAME, async () => {
   try {
     await runTests();
   } catch (e) {

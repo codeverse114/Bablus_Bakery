@@ -9,12 +9,11 @@ const app = require('../backend/server');
 const store = require('../backend/models/store');
 
 let server;
-const PORT = 3005;
+const PIPE_NAME = `\\\\.\\pipe\\bb-admin-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
 function request(method, path, body = null, headers = {}) {
   return new Promise((resolve, reject) => {
     const fullPath = path.startsWith('/') ? path : '/' + path;
-    const url = new URL(fullPath, `http://localhost:${PORT}`);
     const reqHeaders = { ...headers };
     let reqBody = null;
 
@@ -24,7 +23,12 @@ function request(method, path, body = null, headers = {}) {
       reqHeaders['Content-Length'] = Buffer.byteLength(reqBody);
     }
 
-    const req = http.request(url, { method, headers: reqHeaders }, (res) => {
+    const req = http.request({
+      socketPath: PIPE_NAME,
+      path: fullPath,
+      method,
+      headers: reqHeaders
+    }, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
@@ -438,7 +442,7 @@ async function runTests() {
   }
 }
 
-server = app.listen(PORT, async () => {
+server = app.listen(PIPE_NAME, async () => {
   try {
     await runTests();
   } catch (e) {
