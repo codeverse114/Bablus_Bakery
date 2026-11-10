@@ -1,6 +1,8 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const store = require('./models/store');
 const routes = require('./routes');
 
 const app = express();
@@ -9,6 +11,18 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Persist mutating API changes automatically to Supabase PostgreSQL when connected
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && !req.path.startsWith('/test')) {
+    res.on('finish', () => {
+      if (res.statusCode < 400 && store.persistenceEnabled) {
+        store.persist().catch(err => console.error('[DB Persist Error]', err.message));
+      }
+    });
+  }
+  next();
+});
 
 // Mount API and redirect routes
 app.use(routes);
@@ -50,11 +64,17 @@ app.get('/checkout', (req, res) => {
 });
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`Backrey Bases Unified Server running at http://localhost:${PORT}`);
-    console.log(`- Customer Storefront: http://localhost:${PORT}/`);
-    console.log(`- Admin Panel: http://localhost:${PORT}/admin/`);
-  });
+  store.initDatabase()
+    .catch(err => {
+      console.error('[DB Init Warning] Falling back to in-memory store:', err.message);
+    })
+    .finally(() => {
+      app.listen(PORT, () => {
+        console.log(`Backrey Bases Unified Server running at http://localhost:${PORT}`);
+        console.log(`- Customer Storefront: http://localhost:${PORT}/`);
+        console.log(`- Admin Panel: http://localhost:${PORT}/admin/`);
+      });
+    });
 }
 
 module.exports = app;

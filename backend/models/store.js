@@ -5,6 +5,7 @@
 
 class Store {
   constructor() {
+    this.persistenceEnabled = false;
     this.reset();
   }
 
@@ -1716,6 +1717,21 @@ class Store {
           price_list_id: resolution.price_list_id
         };
       });
+  }
+
+  async initDatabase() {
+    const postgres = require('../db/postgres');
+    const connected = await postgres.initAndHydrate(this);
+    if (connected) {
+      this.persistenceEnabled = true;
+    }
+    return connected;
+  }
+
+  persist() {
+    if (!this.persistenceEnabled) return Promise.resolve();
+    const postgres = require('../db/postgres');
+    return postgres.scheduleSync(this);
   }
 }
 
