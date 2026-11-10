@@ -155,18 +155,15 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     });
   }
-      loadDashboard(data.token);
 
-    } catch (err) {
-      showToast('Network error during registration.', 'error');
-    }
-  });
-
-  // LOAD DASHBOARD (Blueprint 3.9)
+  // LOAD DASHBOARD (Blueprint 3.9 & Addendum Sections)
   async function loadDashboard(authToken) {
     try {
       const res = await fetch('/api/wholesale/dashboard', {
-        headers: { 'x-wholesale-token': authToken }
+        headers: {
+          'x-customer-token': authToken,
+          'x-wholesale-token': authToken
+        }
       });
 
       if (!res.ok) {
@@ -183,7 +180,8 @@ document.addEventListener('DOMContentLoaded', () => {
       dashboardView.style.display = 'block';
       btnHeaderLogout.style.display = 'inline-flex';
 
-      dashShopName.textContent = currentWholesaleUser.shop_name;
+      const secLabel = (currentWholesaleUser.section || 'shopkeeper').toUpperCase();
+      dashShopName.textContent = `${currentWholesaleUser.shop_name} (${secLabel})`;
       dashOwnerMeta.textContent = `Owner: ${currentWholesaleUser.owner_name} • ${currentWholesaleUser.state} • Ph: +91 ${currentWholesaleUser.mobile}`;
 
       // Render Last Order card
@@ -275,7 +273,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     try {
       const res = await fetch(`/api/wholesale/statement?month=${encodeURIComponent(month)}&format=${format}`, {
-        headers: { 'x-wholesale-token': authToken }
+        headers: {
+          'x-customer-token': authToken,
+          'x-wholesale-token': authToken
+        }
       });
 
       if (!res.ok) {
@@ -311,7 +312,10 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const res = await fetch(`/api/wholesale/reorder/${encodeURIComponent(orderNo)}`, {
         method: 'POST',
-        headers: { 'x-wholesale-token': authToken }
+        headers: {
+          'x-customer-token': authToken,
+          'x-wholesale-token': authToken
+        }
       });
 
       const data = await res.json();

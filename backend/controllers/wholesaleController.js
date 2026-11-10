@@ -109,39 +109,45 @@ exports.login = (req, res) => {
 };
 
 exports.getDashboard = (req, res) => {
-  if (!req.user || !req.user.is_wholesale) {
-    return res.status(401).json({ success: false, error: 'Wholesale authentication required.' });
+  const account = req.customer || req.user;
+  if (!account) {
+    return res.status(401).json({ success: false, error: 'Partner authentication required.' });
   }
 
-  const ownOrders = store.getWholesaleOrders(req.user.id);
+  const ownOrders = store.getWholesaleOrders(account.id);
   const lastOrder = ownOrders.length > 0 ? ownOrders[ownOrders.length - 1] : null;
+  const resolvedPrices = account.section ? store.resolveAllPricesForCustomer(account) : null;
 
   res.json({
     success: true,
     profile: {
-      id: req.user.id,
-      shop_name: req.user.shop_name,
-      owner_name: req.user.owner_name,
-      email: req.user.email,
-      mobile: req.user.mobile,
-      address: req.user.address,
-      state: req.user.state
+      id: account.id,
+      shop_name: account.shop_name || account.name,
+      owner_name: account.owner_name || account.name,
+      section: account.section || 'shopkeeper',
+      price_list_id: account.price_list_id || null,
+      email: account.email || '',
+      mobile: account.mobile,
+      address: account.address || '',
+      state: account.state || 'Karnataka'
     },
     stats: {
       total_orders: ownOrders.length,
       last_order_date: lastOrder ? lastOrder.createdAt : null
     },
+    resolved_prices: resolvedPrices,
     last_order: lastOrder,
     recent_orders: ownOrders.slice(-5).reverse()
   });
 };
 
 exports.getOrders = (req, res) => {
-  if (!req.user || !req.user.is_wholesale) {
-    return res.status(401).json({ success: false, error: 'Wholesale authentication required.' });
+  const account = req.customer || req.user;
+  if (!account) {
+    return res.status(401).json({ success: false, error: 'Partner authentication required.' });
   }
 
-  const orders = store.getWholesaleOrders(req.user.id);
+  const orders = store.getWholesaleOrders(account.id);
   res.json({
     success: true,
     orders
@@ -149,11 +155,12 @@ exports.getOrders = (req, res) => {
 };
 
 exports.reorder = (req, res) => {
-  if (!req.user || !req.user.is_wholesale) {
-    return res.status(401).json({ success: false, error: 'Wholesale authentication required.' });
+  const account = req.customer || req.user;
+  if (!account) {
+    return res.status(401).json({ success: false, error: 'Partner authentication required.' });
   }
 
-  const result = store.reorderPastOrder(req.params.orderId, req.user.id);
+  const result = store.reorderPastOrder(req.params.orderId, account.id);
   if (!result.success) {
     return res.status(404).json(result);
   }
@@ -162,15 +169,19 @@ exports.reorder = (req, res) => {
 };
 
 exports.getStatement = (req, res) => {
-  if (!req.user || !req.user.is_wholesale) {
-    return res.status(401).json({ success: false, error: 'Wholesale authentication required.' });
+  const account = req.customer || req.user;
+  if (!account) {
+    return res.status(401).json({ success: false, error: 'Partner authentication required.' });
   }
 
   const { month, format = 'pdf' } = req.query;
-  const ownOrders = store.getWholesaleOrders(req.user.id);
+  let ownOrders = store.getWholesaleOrders(account.id);
+  if (month && month !== 'All') {
+    ownOrders = ownOrders.filter(o => o.createdAt && o.createdAt.startsWith(month));
+  }
 
   if (format === 'csv') {
-    const csvContent = invoiceService.generateMonthlyStatementCSV(req.user, month, ownOrders);
+    const csvContent = invoiceService.generateMonthlyStatementCSV(account, month, ownOrders);
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="Statement-${month || 'All'}.csv"`);
     return res.send(csvContent);
@@ -178,5 +189,5 @@ exports.getStatement = (req, res) => {
 
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="Statement-${month || 'All'}.pdf"`);
-  invoiceService.generateMonthlyStatementPDF(req.user, month, ownOrders, res);
+  invoiceService.generateMonthlyStatementPDF(account, month, ownOrders, res);
 };

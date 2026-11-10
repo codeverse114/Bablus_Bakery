@@ -214,6 +214,30 @@ async function runTests() {
     assert.strictEqual(pb.special_orders_amount, 900);
   });
 
+  // Blueprint Section 15.9: Staff sees only Regular orders, Shop stock & Shop-collected Shopkeeper orders
+  await test('STAFF-15.9', 'Staff sees Shop stock & Shop orders only; blocked from Factory, prices, logs & transfers', async () => {
+    const staffHeaders = { 'Authorization': 'Bearer adm-usr-staff-1' };
+
+    // Blocked (403) from prices, price lists, price log, transfers, customer registry
+    const pLog = await request('GET', '/api/admin/price-log', null, staffHeaders);
+    const sCust = await request('GET', '/api/admin/sections/factory/customers', null, staffHeaders);
+    const txList = await request('GET', '/api/admin/stock/transfers', null, staffHeaders);
+    assert.strictEqual(pLog.status, 403);
+    assert.strictEqual(sCust.status, 403);
+    assert.strictEqual(txList.status, 403);
+
+    // Location stock returns only loc-shop
+    const locRes = await request('GET', '/api/admin/stock/locations', null, staffHeaders);
+    assert.strictEqual(locRes.status, 200);
+    assert.strictEqual(locRes.body.locations.length, 1);
+    assert.strictEqual(locRes.body.locations[0].id, 'loc-shop');
+
+    // Orders list excludes Factory section orders
+    const ordRes = await request('GET', '/api/admin/orders', null, staffHeaders);
+    assert.strictEqual(ordRes.status, 200);
+    assert.strictEqual(ordRes.body.orders.some(o => o.section === 'factory'), false, 'Staff must not see Factory orders');
+  });
+
   console.log('\n----------------------------------------------------');
   console.log(`TOTAL: ${passed + failed} | PASSED: ${passed} | FAILED: ${failed}`);
   console.log('----------------------------------------------------');

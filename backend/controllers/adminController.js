@@ -141,18 +141,25 @@ exports.toggleProductStatus = (req, res) => {
   }
 };
 
-// Inventory Management (Blueprint 3.5 & Tests A3, A5, A6, A8)
+// Inventory Management (Blueprint 3.5 & Addendum Section 8 & 15.9)
 exports.getInventory = (req, res) => {
-  const inventoryList = store.products.map(p => ({
-    id: p.id,
-    name: p.name,
-    category: p.category,
-    pack_size: p.pack_size,
-    stock: p.stock,
-    low_stock_threshold: p.low_stock_threshold || 20,
-    status: p.stock <= 0 ? 'Out of stock' : p.stock <= (p.low_stock_threshold || 20) ? 'Low stock' : 'In stock',
-    is_live: p.is_live
-  }));
+  const isStaff = req.adminUser && req.adminUser.role === 'staff';
+  const inventoryList = store.products.map(p => {
+    const shopQty = store.getLocationStock('loc-shop', p.id);
+    const factoryQty = isStaff ? null : store.getLocationStock('loc-factory', p.id);
+    return {
+      id: p.id,
+      name: p.name,
+      category: p.category,
+      pack_size: p.pack_size,
+      stock: isStaff ? shopQty : p.stock,
+      shop_stock: shopQty,
+      factory_stock: factoryQty,
+      low_stock_threshold: p.low_stock_threshold || 20,
+      status: (isStaff ? shopQty : p.stock) <= 0 ? 'Out of stock' : (isStaff ? shopQty : p.stock) <= (p.low_stock_threshold || 20) ? 'Low stock' : 'In stock',
+      is_live: p.is_live
+    };
+  });
 
   res.json({
     success: true,
@@ -203,13 +210,32 @@ exports.getInventoryLog = (req, res) => {
   });
 };
 
-// Orders Management (Blueprint 3.6, 3.7 & Tests O1, O2)
+// Orders Management (Blueprint 3.6, 3.7, Addendum 7.5 & 15.9)
 exports.getOrders = (req, res) => {
-  const { status, channel, search } = req.query;
+  const { status, channel, section, search } = req.query;
+  const isStaff = req.adminUser && req.adminUser.role === 'staff';
   let orders = [...store.orders].reverse();
+
+  // Blueprint Addendum Section 15.9: Staff sees only Regular (Shop) orders & Shopkeeper orders collected from Shop
+  if (isStaff) {
+    orders = orders.filter(o => {
+      const sec = (o.section || '').toLowerCase();
+      if (sec === 'factory') return false;
+      if (sec === 'shopkeeper' && o.stock_location_id === 'loc-factory') return false;
+      return true;
+    });
+  }
 
   if (status && status !== 'All') {
     orders = orders.filter(o => o.status.toLowerCase() === status.toLowerCase());
+  }
+
+  if (section && section !== 'All') {
+    const targetSec = section.toLowerCase();
+    orders = orders.filter(o => {
+      const orderSec = (o.section || (o.tag === 'Wholesale' ? 'shopkeeper' : 'regular')).toLowerCase();
+      return orderSec === targetSec;
+    });
   }
 
   if (channel && channel !== 'All') {
@@ -753,6 +779,99 @@ exports.getPriceLog = (req, res) => {
     count: store.price_change_log.length,
     log: store.price_change_log
   });
+};
+
+// Manage dedicated per-customer Special Price List (Blueprint Section 7.2: Copy Standard, Edit, Apply %, Reset to Standard)
+exports.setCustomerSpecialPrices = (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items = [], action = 'save' } = req.body;
+    const customer = store.findCustomerById(id);
+    if (!customer) {
+      return res.status(404).json({ success: false, error: 'Customer not found.' });
+    }
+
+    const adminEmail = req.adminUser ? req.adminUser.email : 'owner@backreybases.in';
+
+    if (action === 'reset') {
+      customer.price_list_id = null;
+      return res.json({ success: true, message: 'Customer reset to Section Standard prices.', customer });
+    }
+
+    // Create a dedicated Special Price List for this customer if they don't already have a personal one
+    const personalListId = `pl-${customer.section.slice(0, 3)}-spc-${customer.id}`;
+    let list = store.price_lists.find(pl => pl.id === customer.price_list_id && pl.id === personalListId);
+    if (!list) {
+      list = store.price_lists.find(pl => pl.id === personalListId);
+      if (!list) {
+        list = {
+          id: personalListId,
+          section: customer.section,
+          name: `${customer.section.toUpperCase()} Special (${customer.name || customer.shop_name})`,
+          type: 'special',
+          is_active: true
+        };
+        store.price_lists.push(list);
+      }
+      customer.price_list_id = list.id;
+    }
+
+    for (const newItem of items) {
+      const existingIdx = store.price_list_items.findIndex(i => i.price_list_id === list.id && i.product_id === newItem.product_id);
+      const stdList = store.price_lists.find(pl => pl.section === customer.section && pl.type === 'standard');
+      const stdItem = stdList ? store.price_list_items.find(i => i.price_list_id === stdList.id && i.product_id === newItem.product_id) : null;
+
+      const oldPrice = existingIdx >= 0 ? store.price_list_items[existingIdx].price : (stdItem ? stdItem.price : null);
+      const oldMoq = existingIdx >= 0 ? store.price_list_items[existingIdx].moq : (stdItem ? stdItem.moq : null);
+      const newPrice = Number(newItem.price);
+      const newMoq = newItem.moq !== undefined ? Number(newItem.moq) : oldMoq;
+
+      if (existingIdx >= 0) {
+        store.price_list_items[existingIdx] = {
+          ...store.price_list_items[existingIdx],
+          price: newPrice,
+          price_paise: Math.round(newPrice * 100),
+          moq: newMoq
+        };
+      } else {
+        store.price_list_items.push({
+          price_list_id: list.id,
+          product_id: newItem.product_id,
+          unit: stdItem ? stdItem.unit : 'pack',
+          pack_size: stdItem ? stdItem.pack_size : 10,
+          price: newPrice,
+          price_paise: Math.round(newPrice * 100),
+          moq: newMoq !== null ? newMoq : 1
+        });
+      }
+
+      if (oldPrice !== newPrice || oldMoq !== newMoq) {
+        store.price_change_log.unshift({
+          id: 'pcl-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          admin_id: adminEmail,
+          section: customer.section,
+          list_name: list.name,
+          price_list_id: list.id,
+          product_id: newItem.product_id,
+          old_price: oldPrice,
+          new_price: newPrice,
+          old_moq: oldMoq,
+          new_moq: newMoq,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Special price list saved.',
+      customer,
+      price_list: list,
+      items: store.price_list_items.filter(i => i.price_list_id === list.id)
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
 };
 
 // Stock Location Transfers (Blueprint Section 8 & Section 11)

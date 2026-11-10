@@ -73,17 +73,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderCheckoutSummary(validatedCart);
 
-  // Pre-fill saved wholesale address if logged in (Blueprint 3.10)
+  // Pre-fill saved partner/wholesale address if logged in (Blueprint 3.10 & Addendum Section 8)
   const savedWholesale = localStorage.getItem('backrey_wholesale_user');
+  const collectFromGroup = document.getElementById('collectFromGroup');
+  const custCollectFrom = document.getElementById('custCollectFrom');
   if (savedWholesale) {
     try {
       const wProfile = JSON.parse(savedWholesale);
-      if (wProfile.owner_name && !custName.value) custName.value = wProfile.owner_name;
+      if ((wProfile.owner_name || wProfile.name) && !custName.value) custName.value = wProfile.owner_name || wProfile.name;
       if (wProfile.mobile && !custMobile.value) custMobile.value = wProfile.mobile;
       if (wProfile.email && !custEmail.value) custEmail.value = wProfile.email;
       if (wProfile.address && !custAddress.value) custAddress.value = wProfile.address;
       if (wProfile.state && !custCity.value) custCity.value = wProfile.state;
-      showToast(`Saved wholesale address loaded for ${wProfile.shop_name}`);
+      if (wProfile.section === 'shopkeeper' && collectFromGroup) {
+        collectFromGroup.style.display = 'block';
+      }
+      showToast(`Saved partner profile loaded for ${wProfile.shop_name || wProfile.name}`);
     } catch (e) {}
   }
 
@@ -268,7 +273,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       const itemsPayload = window.cartManager.getState().items.map(i => ({
         id: i.id,
-        quantity: i.quantity
+        quantity: i.quantity,
+        price: i.price
       }));
 
       const customerPayload = {
@@ -278,13 +284,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         address: `${custAddress.value.trim()}, Pincode: ${custPincode.value.trim()}`,
         landmark: custLandmark.value.trim(),
         city: custCity.value.trim(),
-        notes: custNotes.value.trim()
+        notes: custNotes.value.trim(),
+        collect_from: (collectFromGroup && collectFromGroup.style.display !== 'none' && custCollectFrom) ? custCollectFrom.value : undefined
       };
 
       const isTaggedInShop = localStorage.getItem('backrey_order_tag') === 'In-shop' || new URLSearchParams(window.location.search).get('tag') === 'in-shop';
 
       // Call POST /api/checkout/start
       const res = await window.API.startCheckout(itemsPayload, customerPayload, isTaggedInShop);
+
+      if (res.price_changed && res.notices && res.notices.length > 0) {
+        showToast(`Price Updated: ${res.notices.join(' ')}`, 'error');
+        renderCheckoutSummary({ items: res.summary.items, ...res.summary });
+      }
 
       activeReservation = res;
       renderHoldBanner();

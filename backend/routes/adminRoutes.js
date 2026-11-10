@@ -91,25 +91,29 @@ router.get('/qr/poster', adminController.getQrPoster);
 router.post('/notifications/test', adminController.testNotification);
 router.get('/notifications/failures', adminController.getNotificationFailures);
 
-// 8. Wholesale Customer Overview
-router.get('/wholesale/customers', adminController.getWholesaleCustomers);
+// 8. Wholesale Customer Overview (Owner-Only per Section 15.9)
+router.get('/wholesale/customers', requireOwnerRole, adminController.getWholesaleCustomers);
 
-// 8.1 Customer Sections & Whitelist Registry (Blueprint Addendum Section 7.3 & Section 11)
-router.get('/sections/:section/customers', adminController.getSectionCustomers);
-router.post('/sections/:section/customers', adminController.addSectionCustomer);
-router.patch('/customers/:id', adminController.updateCustomer);
+// 8.1 Customer Sections & Whitelist Registry (Blueprint Addendum Section 7.3, 11 & 15.9: Owner Only)
+router.get('/sections/:section/customers', requireOwnerRole, adminController.getSectionCustomers);
+router.post('/sections/:section/customers', requireOwnerRole, adminController.addSectionCustomer);
+router.patch('/customers/:id', requireOwnerRole, adminController.updateCustomer);
+router.post('/customers/:id/special-prices', requireOwnerRole, adminController.setCustomerSpecialPrices);
 
-// 8.2 Standard & Special Price Lists & Price Log (Blueprint Addendum Section 7.1, 7.2 & 7.4)
-router.get('/price-lists/:id', adminController.getPriceList);
+// 8.2 Standard & Special Price Lists & Price Log (Blueprint Addendum Section 7.1, 7.2, 7.4 & 15.9: Owner Only)
+router.get('/price-lists/:id', requireOwnerRole, adminController.getPriceList);
 router.put('/price-lists/:id', requireOwnerRole, adminController.updatePriceList);
 router.post('/price-lists', requireOwnerRole, adminController.createPriceList);
-router.get('/price-log', adminController.getPriceLog);
+router.get('/price-log', requireOwnerRole, adminController.getPriceLog);
 
-// 8.3 Dual Location Stock Transfers (Blueprint Addendum Section 8 & Section 11)
-router.post('/stock/transfer', adminController.transferStock);
+// 8.3 Dual Location Stock Transfers (Blueprint Addendum Section 8, 11 & 15.9)
+router.post('/stock/transfer', requireOwnerRole, adminController.transferStock);
 router.get('/stock/locations', (req, res) => {
-  const store = require('../models/store');
-  const locations = store.stock_locations.map(loc => ({
+  const isStaff = req.adminUser && req.adminUser.role === 'staff';
+  const locs = isStaff
+    ? store.stock_locations.filter(loc => loc.id === 'loc-shop')
+    : store.stock_locations;
+  const locations = locs.map(loc => ({
     ...loc,
     stock: store.location_stock.filter(ls => ls.location_id === loc.id).map(ls => ({
       product_id: ls.product_id,
@@ -119,8 +123,7 @@ router.get('/stock/locations', (req, res) => {
   }));
   res.json({ success: true, locations });
 });
-router.get('/stock/transfers', (req, res) => {
-  const store = require('../models/store');
+router.get('/stock/transfers', requireOwnerRole, (req, res) => {
   res.json({ success: true, transfers: store.stock_transfers });
 });
 

@@ -1369,8 +1369,14 @@ class Store {
     return order;
   }
 
-  getWholesaleOrders(wholesalerId) {
-    return this.orders.filter(o => o.wholesalerId === wholesalerId);
+  getWholesaleOrders(customerIdOrWholesalerId) {
+    const cust = this.findCustomerById(customerIdOrWholesalerId);
+    const cleanMobile = cust ? this.cleanMobile(cust.mobile) : null;
+    return this.orders.filter(o =>
+      o.wholesalerId === customerIdOrWholesalerId ||
+      o.customerId === customerIdOrWholesalerId ||
+      (cleanMobile && o.customer && this.cleanMobile(o.customer.mobile) === cleanMobile)
+    );
   }
 
   reorderPastOrder(orderId, customerIdOrWholesalerId) {

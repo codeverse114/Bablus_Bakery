@@ -112,15 +112,25 @@ function enterAppShell() {
 // ==========================================
 // TAB SWITCHING
 // ==========================================
-function switchTab(tabId) {
-  // If staff tries to click an owner-only tab, deny
-  if (['wholesale', 'reports', 'settings'].includes(tabId) && currentUser.role !== 'owner') {
+function switchTab(tabId, filterArg = null) {
+  // If staff tries to click an owner-only tab, deny (Blueprint Section 15.9)
+  if (['wholesale', 'reports', 'settings', 'transfers', 'price-log'].includes(tabId) && currentUser.role !== 'owner') {
     alert('Access Denied: Restricted to Owner role only.');
     return;
   }
 
+  let activeDataTab = tabId;
+  if (tabId === 'orders' && filterArg && filterArg !== 'All') {
+    activeDataTab = `orders-${filterArg.toLowerCase()}`;
+    const secSelect = document.getElementById('orderSectionFilter');
+    if (secSelect) secSelect.value = filterArg.toLowerCase();
+  } else if (tabId === 'orders' && filterArg === 'All') {
+    const secSelect = document.getElementById('orderSectionFilter');
+    if (secSelect) secSelect.value = 'All';
+  }
+
   document.querySelectorAll('.nav-link').forEach(link => {
-    link.classList.toggle('active', link.getAttribute('data-tab') === tabId);
+    link.classList.toggle('active', link.getAttribute('data-tab') === activeDataTab);
   });
 
   document.querySelectorAll('.tab-pane').forEach(pane => {
@@ -131,11 +141,13 @@ function switchTab(tabId) {
     dashboard: 'Operations Dashboard',
     orders: 'Orders & Fulfillment',
     pos: 'Point of Sale (POS) Counter Entry',
-    inventory: 'Commercial Inventory & Tamper-Proof Audit',
+    inventory: 'Stock by Location (Factory & Shop) & Audit Log',
+    transfers: 'Dual Location Stock Transfers (Factory ↔ Shop)',
+    'price-log': 'Price & MOQ Change Audit Log',
     products: 'Products & Recipe Catalog',
     invoices: 'Tax Invoices Registry (Sequential, No Gaps)',
     wholesale: 'Wholesale B2B Clients & Custom Pricing',
-    reports: 'Sales & Accounting Reports',
+    reports: 'Sectioned Sales & Billing Reports',
     settings: 'Bakery Configuration & Staff'
   };
   document.getElementById('pageTitle').textContent = titles[tabId] || 'Bakery Console';
@@ -144,6 +156,8 @@ function switchTab(tabId) {
   if (tabId === 'orders') loadOrders();
   if (tabId === 'pos') initPos();
   if (tabId === 'inventory') loadInventory();
+  if (tabId === 'transfers') loadTransfers();
+  if (tabId === 'price-log') loadPriceLog();
   if (tabId === 'products') loadProducts();
   if (tabId === 'invoices') loadInvoices();
   if (tabId === 'wholesale') loadWholesaleClients();
@@ -208,10 +222,12 @@ async function loadOrders() {
   try {
     const status = document.getElementById('orderStatusFilter').value;
     const channel = document.getElementById('orderChannelFilter').value;
+    const section = document.getElementById('orderSectionFilter')?.value || 'All';
 
     const query = new URLSearchParams();
     if (status && status !== 'All') query.set('status', status);
     if (channel && channel !== 'All') query.set('channel', channel);
+    if (section && section !== 'All') query.set('section', section);
 
     const res = await fetch(`${API_BASE}/orders?${query.toString()}`, { headers: getAuthHeaders() });
     if (res.status === 401) return logoutAdmin();
@@ -226,11 +242,15 @@ async function loadOrders() {
     tbody.innerHTML = data.orders.map(order => {
       const itemsDesc = (order.items || []).map(i => `${i.name} (x${i.quantity})`).join(', ');
       const nextStatus = getNextOrderStatus(order.status);
+      const secName = (order.section || (order.tag === 'Wholesale' ? 'shopkeeper' : 'regular')).toUpperCase();
+      const listLabel = order.price_list_id ? `Special (${order.price_list_id})` : 'Standard';
+      const stockLocLabel = order.stock_location_id === 'loc-factory' ? '🏭 Factory' : '🏪 Shop';
 
       return `
         <tr>
           <td>
             <strong>${order.orderNo}</strong>
+            <div style="font-size:0.75rem; color:var(--primary); font-weight:600;">${order.invoiceNo || ''}</div>
             <div style="font-size:0.75rem; color:var(--muted);">${new Date(order.createdAt).toLocaleDateString()}</div>
           </td>
           <td>
@@ -238,10 +258,10 @@ async function loadOrders() {
             ${order.customer?.mobile ? `<a href="tel:${order.customer.mobile}" style="color:var(--primary); font-size:0.85rem;">📞 +91 ${order.customer.mobile}</a>` : '—'}
           </td>
           <td>
-            <span class="badge badge-channel ${(order.channel || order.tag || '').toLowerCase()}">
-              ${order.channel || order.tag || 'Online'}
+            <span class="badge badge-channel ${(order.section || order.channel || '').toLowerCase()}">
+              ${secName}
             </span>
-            <div style="font-size:0.75rem; color:var(--muted); margin-top:2px;">${order.paymentMode || 'Prepaid'}</div>
+            <div style="font-size:0.74rem; color:var(--muted); margin-top:3px;">${listLabel} • ${stockLocLabel}</div>
           </td>
           <td style="max-width: 240px; font-size: 0.85rem;">
             ${itemsDesc}
@@ -489,11 +509,12 @@ async function loadInventory() {
     const tbody = document.getElementById('inventoryTbody');
     tbody.innerHTML = currentInventory.map(item => `
       <tr>
-        <td><strong>${item.name}</strong></td>
+        <td><strong>${item.name}</strong><div style="font-size:0.75rem; color:var(--muted);">${item.pack_size}</div></td>
         <td>${item.category}</td>
-        <td>${item.pack_size}</td>
-        <td><strong style="font-size:1.1rem;">${item.stock}</strong> units</td>
+        <td>${item.factory_stock !== null && item.factory_stock !== undefined ? `<strong>${item.factory_stock}</strong> pcs` : '<span style="color:var(--muted);">Restricted</span>'}</td>
+        <td><strong>${item.shop_stock !== undefined ? item.shop_stock : item.stock}</strong> pcs</td>
         <td>
+          <div><strong style="font-size:1.05rem;">${item.stock}</strong> total</div>
           <span class="badge badge-${item.status.toLowerCase().replace(/\s+/g, '-')}">
             ${item.status}
           </span>
@@ -888,26 +909,61 @@ async function resendInvoicePrompt(orderNo) {
 }
 
 // ==========================================
-// 7. REPORTS & EXPORTS (Owner Only)
+// 7. REPORTS & EXPORTS (Owner Only - Blueprint Section 9.2)
 // ==========================================
+function toggleCustomReportDates() {
+  const period = document.getElementById('reportPeriodSelect')?.value || 'monthly';
+  const s = document.getElementById('reportStartDate');
+  const e = document.getElementById('reportEndDate');
+  if (s && e) {
+    s.disabled = period !== 'custom';
+    e.disabled = period !== 'custom';
+  }
+}
+
 async function loadReports() {
   try {
+    const section = document.getElementById('reportSectionSelect')?.value || 'all';
+    const period = document.getElementById('reportPeriodSelect')?.value || 'monthly';
     const startDate = document.getElementById('reportStartDate')?.value || '';
     const endDate = document.getElementById('reportEndDate')?.value || '';
 
-    const query = new URLSearchParams();
-    if (startDate) query.set('startDate', startDate);
-    if (endDate) query.set('endDate', endDate);
+    const query = new URLSearchParams({ period });
+    if (startDate && period === 'custom') query.set('startDate', startDate);
+    if (endDate && period === 'custom') query.set('endDate', endDate);
 
-    const res = await fetch(`${API_BASE}/reports/monthly?${query.toString()}`, { headers: getAuthHeaders() });
+    const res = await fetch(`${API_BASE}/reports/section/${section}?${query.toString()}`, { headers: getAuthHeaders() });
     if (res.status === 403) return alert('Restricted to Owner only.');
     const data = await res.json();
 
-    const s = data.summary;
-    document.getElementById('reportTotalOrders').textContent = s.total_orders;
-    document.getElementById('reportTotalRevenue').textContent = `₹${s.revenue}`;
-    document.getElementById('reportInShopOrders').textContent = s.in_shop_orders;
-    document.getElementById('reportWholesaleOrders').textContent = s.wholesale_orders;
+    document.getElementById('reportTotalOrders').textContent = data.total_orders || 0;
+    document.getElementById('reportTotalPieces').textContent = data.total_pieces || 0;
+    document.getElementById('reportTotalRevenue').textContent = `₹${(data.gross_amount || 0).toLocaleString('en-IN')}`;
+    const pb = data.pricing_breakdown || { standard_orders_count: 0, special_orders_count: 0 };
+    document.getElementById('reportPricingShare').textContent = `${pb.standard_orders_count} Std / ${pb.special_orders_count} Spc`;
+
+    const prodTbody = document.getElementById('reportProductsTbody');
+    const prods = data.products_breakdown || [];
+    prodTbody.innerHTML = prods.length ? prods.map(p => `
+      <tr>
+        <td><strong>${p.name}</strong></td>
+        <td>${p.pieces} pcs</td>
+        <td><strong>₹${(p.amount || 0).toLocaleString('en-IN')}</strong></td>
+      </tr>
+    `).join('') : '<tr><td colspan="3" style="text-align:center; padding:12px;">No product sales in period.</td></tr>';
+
+    const custTbody = document.getElementById('reportCustomersTbody');
+    const custs = data.top_customers || [];
+    custTbody.innerHTML = custs.length ? custs.map(c => `
+      <tr>
+        <td><strong>${c.name}</strong><div style="font-size:0.75rem; color:var(--muted);">${c.mobile}</div></td>
+        <td>${c.orders_count} ord / ${c.pieces} pcs</td>
+        <td><strong>₹${(c.amount_paid || 0).toLocaleString('en-IN')}</strong></td>
+        <td>
+          <a href="${API_BASE}/reports/section/${section}/statement?mobile=${encodeURIComponent(c.mobile)}&format=csv&authorization=Bearer ${localStorage.getItem('bb_admin_token') || ''}" target="_blank" class="btn btn-outline btn-sm">CSV</a>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="4" style="text-align:center; padding:12px;">No customer orders in period.</td></tr>';
   } catch (err) {
     console.error('Error loading reports:', err);
   }
@@ -939,6 +995,19 @@ async function loadSettings() {
     document.getElementById('settingBusinessAddress').value = s.business_address || '';
     document.getElementById('settingWhatsApp').value = s.notifications?.whatsapp_number || s.phone || '8219775396';
     document.getElementById('settingHoldMinutes').value = s.stock_hold_minutes || 10;
+    if (document.getElementById('settingWeekStartDay')) {
+      document.getElementById('settingWeekStartDay').value = s.week_start_day || 'Monday';
+    }
+    if (document.getElementById('settingSeparateShopStock')) {
+      document.getElementById('settingSeparateShopStock').value = String(s.use_separate_shop_stock !== false);
+    }
+    if (document.getElementById('settingInvoiceSeriesPreview') && s.invoice_series) {
+      const ser = s.invoice_series;
+      document.getElementById('settingInvoiceSeriesPreview').textContent =
+        `Factory: ${ser.factory.prefix}/${String(ser.factory.next_number).padStart(4, '0')} • ` +
+        `Shopkeepers: ${ser.shopkeeper.prefix}/${String(ser.shopkeeper.next_number).padStart(4, '0')} • ` +
+        `Regular: ${ser.regular.prefix}/${String(ser.regular.next_number).padStart(4, '0')}`;
+    }
 
     loadStaff();
   } catch (err) {
@@ -953,6 +1022,8 @@ async function saveSettings(e) {
     business_address: document.getElementById('settingBusinessAddress').value.trim(),
     phone: document.getElementById('settingWhatsApp').value.trim(),
     stock_hold_minutes: parseInt(document.getElementById('settingHoldMinutes').value),
+    week_start_day: document.getElementById('settingWeekStartDay')?.value || 'Monday',
+    use_separate_shop_stock: (document.getElementById('settingSeparateShopStock')?.value || 'true') === 'true',
     notifications: {
       whatsapp_enabled: true,
       whatsapp_number: document.getElementById('settingWhatsApp').value.trim()
@@ -1231,9 +1302,10 @@ async function loadSectionSpecialCustomers() {
           </span>
         </td>
         <td>
-          <button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">
-            Revert to Standard
-          </button>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openEditCustomerSpecialModal('${c.id}')">Edit / Custom Prices</button>
+            <button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">Revert to Standard</button>
+          </div>
         </td>
       </tr>
     `).join('');
@@ -1282,10 +1354,13 @@ async function loadSectionCustomers() {
           </button>
         </td>
         <td>
-          ${c.price_list_id 
-            ? `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">Move to Standard</button>`
-            : `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', 'pl-${currentActiveSection.slice(0, 3)}-spc-1')">Move to Special</button>`
-          }
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-primary btn-sm" onclick="openEditCustomerSpecialModal('${c.id}')">Edit</button>
+            ${c.price_list_id 
+              ? `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">Move to Standard</button>`
+              : `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', 'pl-${currentActiveSection.slice(0, 3)}-spc-1')">Move to Special</button>`
+            }
+          </div>
         </td>
       </tr>
     `).join('');
@@ -1442,5 +1517,248 @@ async function moveCustomerList(id, targetPriceListId) {
 
 function switchReportsSection(section) {
   switchTab('reports');
+  const sel = document.getElementById('reportSectionSelect');
+  if (sel) sel.value = section;
+  document.querySelectorAll('.nav-link').forEach(link => {
+    const dt = link.getAttribute('data-tab');
+    link.classList.toggle('active', section === 'all' ? dt === 'reports' : dt === `reports-${section}`);
+  });
+  loadReports();
+}
+
+// =========================================================================
+// TRANSFERS, PRICE LOG & CUSTOMER SPECIAL EDITOR (Blueprint 7.2, 7.4 & 8)
+// =========================================================================
+let cachedLocationData = [];
+let cachedPriceLog = [];
+
+async function loadTransfers() {
+  try {
+    const [locRes, txRes] = await Promise.all([
+      fetch(`${API_BASE}/stock/locations`, { headers: getAuthHeaders() }),
+      fetch(`${API_BASE}/stock/transfers`, { headers: getAuthHeaders() })
+    ]);
+    const locData = await locRes.json();
+    const txData = await txRes.json();
+
+    cachedLocationData = locData.locations || [];
+    const prodSelect = document.getElementById('txProductId');
+    if (prodSelect) {
+      const factoryLoc = cachedLocationData.find(l => l.id === 'loc-factory');
+      const productsList = factoryLoc ? factoryLoc.stock : [];
+      prodSelect.innerHTML = productsList.map(p => `<option value="${p.product_id}">${p.product_name}</option>`).join('');
+      updateTransferAvailability();
+    }
+
+    const tbody = document.getElementById('transfersTbody');
+    const txs = txData.transfers || [];
+    tbody.innerHTML = txs.length ? txs.map(t => `
+      <tr>
+        <td style="font-size:0.82rem; color:var(--muted);">${new Date(t.created_at).toLocaleString()}</td>
+        <td><strong>${(currentProducts.find(p => p.id === t.product_id) || {}).name || t.product_id}</strong></td>
+        <td>${t.from_location === 'loc-factory' ? 'Factory' : 'Shop'} → ${t.to_location === 'loc-shop' ? 'Shop' : 'Factory'}</td>
+        <td><strong>${t.qty}</strong> pcs</td>
+        <td>${t.admin_id || 'Owner'}</td>
+      </tr>
+    `).join('') : '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--muted);">No stock transfers logged yet.</td></tr>';
+  } catch (err) {
+    console.error('Error loading transfers:', err);
+  }
+}
+
+function updateTransferAvailability() {
+  const fromLocId = document.getElementById('txFromLocation')?.value;
+  const prodId = document.getElementById('txProductId')?.value;
+  const hint = document.getElementById('txAvailHint');
+  if (!fromLocId || !prodId || !hint) return;
+  const loc = cachedLocationData.find(l => l.id === fromLocId);
+  const item = loc ? loc.stock.find(s => s.product_id === prodId) : null;
+  hint.textContent = item ? `(Available: ${item.qty} pcs)` : '(Available: 0 pcs)';
+}
+
+async function submitStockTransfer(e) {
+  e.preventDefault();
+  const from_location = document.getElementById('txFromLocation').value;
+  const to_location = document.getElementById('txToLocation').value;
+  const product_id = document.getElementById('txProductId').value;
+  const qty = parseInt(document.getElementById('txQuantity').value, 10);
+
+  if (from_location === to_location) return alert('Source and destination locations must be different.');
+
+  try {
+    const res = await fetch(`${API_BASE}/stock/transfer`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ from_location, to_location, product_id, qty })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) return alert(data.error || 'Transfer failed');
+    alert(data.message);
+    document.getElementById('txQuantity').value = '';
+    loadTransfers();
+  } catch (err) {
+    alert('Server error executing stock transfer');
+  }
+}
+
+async function loadPriceLog() {
+  try {
+    const res = await fetch(`${API_BASE}/price-log`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    cachedPriceLog = data.log || [];
+    renderPriceLogRows(cachedPriceLog);
+  } catch (err) {
+    console.error('Error loading price log:', err);
+  }
+}
+
+function filterPriceLog() {
+  const q = (document.getElementById('priceLogSearch')?.value || '').trim().toLowerCase();
+  if (!q) return renderPriceLogRows(cachedPriceLog);
+  const filtered = cachedPriceLog.filter(l =>
+    (l.section || '').toLowerCase().includes(q) ||
+    (l.list_name || '').toLowerCase().includes(q) ||
+    (l.product_id || '').toLowerCase().includes(q) ||
+    (l.admin_id || '').toLowerCase().includes(q)
+  );
+  renderPriceLogRows(filtered);
+}
+
+function renderPriceLogRows(rows) {
+  const tbody = document.getElementById('priceLogTbody');
+  tbody.innerHTML = rows.length ? rows.map(l => `
+    <tr>
+      <td style="font-size:0.82rem; color:var(--muted);">${new Date(l.created_at).toLocaleString()}</td>
+      <td>${l.admin_id}</td>
+      <td><span class="badge" style="background:#FAF6F0;">${(l.section || '—').toUpperCase()}</span></td>
+      <td>${l.list_name || l.price_list_id}</td>
+      <td><strong>${(currentProducts.find(p => p.id === l.product_id) || {}).name || l.product_id}</strong></td>
+      <td>₹${l.old_price ?? '—'} → <strong>₹${l.new_price ?? '—'}</strong></td>
+      <td>${l.old_moq ?? '—'} → <strong>${l.new_moq ?? '—'}</strong></td>
+    </tr>
+  `).join('') : '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted);">No price changes logged yet.</td></tr>';
+}
+
+let modalStandardItems = [];
+
+async function openEditCustomerSpecialModal(customerId) {
+  try {
+    const [custRes, stdRes] = await Promise.all([
+      fetch(`${API_BASE}/sections/${currentActiveSection}/customers`, { headers: getAuthHeaders() }),
+      fetch(`${API_BASE}/price-lists/pl-${currentActiveSection.slice(0, 3)}-std`, { headers: getAuthHeaders() })
+    ]);
+    const custData = await custRes.json();
+    const stdData = await stdRes.json();
+
+    const cust = (custData.customers || []).find(c => c.id === customerId);
+    if (!cust) return alert('Customer not found');
+
+    modalStandardItems = stdData.items || [];
+    let specialItems = [];
+    if (cust.price_list_id) {
+      const spcRes = await fetch(`${API_BASE}/price-lists/${cust.price_list_id}`, { headers: getAuthHeaders() });
+      const spcData = await spcRes.json();
+      specialItems = spcData.items || [];
+    }
+
+    document.getElementById('editCustId').value = cust.id;
+    document.getElementById('editCustName').value = cust.name || '';
+    document.getElementById('editCustMobile').value = cust.mobile || '';
+    document.getElementById('editCustShopName').value = cust.shop_name || '';
+    document.getElementById('editCustAddress').value = cust.address || '';
+
+    const tbody = document.getElementById('editSpecialPricesTbody');
+    tbody.innerHTML = modalStandardItems.map(std => {
+      const prod = currentProducts.find(p => p.id === std.product_id) || { name: std.product_id };
+      const spc = specialItems.find(i => i.product_id === std.product_id);
+      return `
+        <tr>
+          <td><strong>${prod.name}</strong></td>
+          <td>₹${std.price} / MOQ ${std.moq}</td>
+          <td><input type="number" class="form-input spc-price-input" data-pid="${std.product_id}" data-std="${std.price}" value="${spc ? spc.price : ''}" placeholder="${std.price}" style="max-width:100px; padding:4px 8px;"></td>
+          <td><input type="number" class="form-input spc-moq-input" data-pid="${std.product_id}" data-std="${std.moq}" value="${spc ? spc.moq : ''}" placeholder="${std.moq}" style="max-width:90px; padding:4px 8px;"></td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('editCustomerSpecialModal').style.display = 'flex';
+  } catch (err) {
+    alert('Error opening customer editor: ' + err.message);
+  }
+}
+
+function copyStandardPricesToModal() {
+  document.querySelectorAll('.spc-price-input').forEach(inp => { inp.value = inp.dataset.std; });
+  document.querySelectorAll('.spc-moq-input').forEach(inp => { inp.value = inp.dataset.std; });
+}
+
+function applyPercentToModal() {
+  const pct = parseFloat(document.getElementById('pctAdjustInput').value);
+  if (isNaN(pct)) return alert('Enter a percentage like -10 or 5');
+  document.querySelectorAll('.spc-price-input').forEach(inp => {
+    const base = parseFloat(inp.value || inp.dataset.std);
+    inp.value = Math.max(1, Math.round(base * (1 + pct / 100)));
+  });
+}
+
+async function resetCustomerToStandard() {
+  const id = document.getElementById('editCustId').value;
+  const res = await fetch(`${API_BASE}/customers/${id}/special-prices`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ action: 'reset' })
+  });
+  if (res.ok) {
+    closeModal('editCustomerSpecialModal');
+    alert('Customer reset to Section Standard prices.');
+    switchSectionInnerTab(currentActiveInnerTab);
+  }
+}
+
+async function saveCustomerAndSpecialPrices() {
+  const id = document.getElementById('editCustId').value;
+  try {
+    const custRes = await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        name: document.getElementById('editCustName').value.trim(),
+        mobile: document.getElementById('editCustMobile').value.trim(),
+        shop_name: document.getElementById('editCustShopName').value.trim(),
+        address: document.getElementById('editCustAddress').value.trim()
+      })
+    });
+    const custData = await custRes.json();
+    if (!custRes.ok || !custData.success) return alert(custData.error || 'Error updating customer');
+
+    const items = [];
+    document.querySelectorAll('.spc-price-input').forEach(inp => {
+      const pid = inp.dataset.pid;
+      const val = inp.value.trim();
+      const moqEl = document.querySelector(`.spc-moq-input[data-pid="${pid}"]`);
+      const moqVal = moqEl ? moqEl.value.trim() : '';
+      if (val !== '') {
+        items.push({
+          product_id: pid,
+          price: parseFloat(val),
+          moq: moqVal !== '' ? parseInt(moqVal, 10) : (moqEl ? parseInt(moqEl.dataset.std, 10) : 1)
+        });
+      }
+    });
+
+    if (items.length > 0) {
+      await fetch(`${API_BASE}/customers/${id}/special-prices`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ items })
+      });
+    }
+
+    closeModal('editCustomerSpecialModal');
+    alert('Customer & special prices updated.');
+    switchSectionInnerTab(currentActiveInnerTab);
+  } catch (err) {
+    alert('Failed to save: ' + err.message);
+  }
 }
 

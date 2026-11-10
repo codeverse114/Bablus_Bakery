@@ -70,19 +70,19 @@
           <span>📊</span> Dashboard
         </a>
 
-        <!-- Orders (Blueprint Section 6) -->
+        <!-- Orders (Blueprint Section 6 & 15.9 Staff restriction) -->
         <div class="sidebar-section-title">Orders</div>
         <a class="nav-link" data-tab="orders" onclick="switchTab('orders', 'All')">
           <span>📦</span> All orders
           <span class="nav-badge" id="badgePendingOrders">0</span>
         </a>
-        <a class="nav-link nav-sublink" data-tab="orders-factory" onclick="switchTab('orders', 'Factory')">
+        <a class="nav-link nav-sublink owner-only" data-tab="orders-factory" onclick="switchTab('orders', 'factory')">
           <span>🏭</span> Factory
         </a>
-        <a class="nav-link nav-sublink" data-tab="orders-shopkeeper" onclick="switchTab('orders', 'Wholesale')">
+        <a class="nav-link nav-sublink" data-tab="orders-shopkeeper" onclick="switchTab('orders', 'shopkeeper')">
           <span>🏬</span> Shopkeepers
         </a>
-        <a class="nav-link nav-sublink" data-tab="orders-regular" onclick="switchTab('orders', 'Online')">
+        <a class="nav-link nav-sublink" data-tab="orders-regular" onclick="switchTab('orders', 'regular')">
           <span>🥖</span> Regular (Shop)
         </a>
 
@@ -94,20 +94,23 @@
         <a class="nav-link" data-tab="inventory" onclick="switchTab('inventory')">
           <span>📋</span> Stock by location (Factory, Shop)
         </a>
-        <a class="nav-link" data-tab="transfers" onclick="switchTab('transfers')">
+        <a class="nav-link owner-only" data-tab="transfers" onclick="switchTab('transfers')">
           <span>🔄</span> Transfers
         </a>
 
-        <!-- Customers and Prices (Blueprint Section 6 & 7) -->
-        <div class="sidebar-section-title">Customers and Prices</div>
-        <a class="nav-link" data-tab="section-factory" onclick="openSectionPage('factory')">
+        <!-- Customers and Prices (Blueprint Section 6, 7 & 15.9: Owner Only) -->
+        <div class="sidebar-section-title owner-only">Customers and Prices</div>
+        <a class="nav-link owner-only" data-tab="section-factory" onclick="openSectionPage('factory')">
           <span>🏭</span> Factory
         </a>
-        <a class="nav-link" data-tab="section-shopkeeper" onclick="openSectionPage('shopkeeper')">
+        <a class="nav-link owner-only" data-tab="section-shopkeeper" onclick="openSectionPage('shopkeeper')">
           <span>🏬</span> Shopkeepers
         </a>
-        <a class="nav-link" data-tab="section-regular" onclick="openSectionPage('regular')">
+        <a class="nav-link owner-only" data-tab="section-regular" onclick="openSectionPage('regular')">
           <span>🥖</span> Regular (Shop)
+        </a>
+        <a class="nav-link owner-only" data-tab="price-log" onclick="switchTab('price-log')">
+          <span>📝</span> Price Change Log
         </a>
 
         <!-- Billing and Reports (Blueprint Section 6 & 9) -->
@@ -262,6 +265,12 @@
                   <option value="Out for delivery">Out for delivery</option>
                   <option value="Delivered">Delivered</option>
                 </select>
+                <select id="orderSectionFilter" class="form-select" style="width: auto;" onchange="loadOrders()">
+                  <option value="All">All Sections</option>
+                  <option value="factory">Factory</option>
+                  <option value="shopkeeper">Shopkeepers</option>
+                  <option value="regular">Regular (Shop)</option>
+                </select>
                 <select id="orderChannelFilter" class="form-select" style="width: auto;" onchange="loadOrders()">
                   <option value="All">All Channels</option>
                   <option value="Online">Online Delivery</option>
@@ -275,13 +284,13 @@
               <table class="data-table">
                 <thead>
                   <tr>
-                    <th>Order #</th>
+                    <th>Order / Invoice</th>
                     <th>Customer Info</th>
-                    <th>Channel</th>
+                    <th>Section / List / Stock</th>
                     <th>Items Summary</th>
                     <th>Total</th>
                     <th>Status Stepper</th>
-                    <th>Documents & Phone</th>
+                    <th>Documents</th>
                   </tr>
                 </thead>
                 <tbody id="ordersTbody">
@@ -374,9 +383,9 @@
                   <tr>
                     <th>Product</th>
                     <th>Category</th>
-                    <th>Pack Size</th>
-                    <th>Current Stock</th>
-                    <th>Status Badge</th>
+                    <th>Factory Stock (pcs)</th>
+                    <th>Shop Stock (pcs)</th>
+                    <th>Total / Status</th>
                     <th>Quick Actions</th>
                   </tr>
                 </thead>
@@ -408,6 +417,100 @@
                 </thead>
                 <tbody id="inventoryLogTbody">
                   <tr><td colspan="7" style="text-align: center; padding: 20px;">Loading audit logs...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 4.5: STOCK TRANSFERS (Blueprint Section 8)
+             ============================================== -->
+        <section id="tab-transfers" class="tab-pane owner-only-pane" style="display:none;">
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+              <h3 class="card-title">Transfer Stock Between Factory & Shop</h3>
+              <button class="btn btn-secondary btn-sm" onclick="loadTransfers()">🔄 Refresh</button>
+            </div>
+            <div class="card-body">
+              <form id="transferStockForm" onsubmit="submitStockTransfer(event)" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap:12px; align-items:end;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>From Location</label>
+                  <select id="txFromLocation" class="form-select" onchange="updateTransferAvailability()">
+                    <option value="loc-factory">Factory</option>
+                    <option value="loc-shop">Shop</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>To Location</label>
+                  <select id="txToLocation" class="form-select">
+                    <option value="loc-shop" selected>Shop</option>
+                    <option value="loc-factory">Factory</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Product</label>
+                  <select id="txProductId" class="form-select" onchange="updateTransferAvailability()"></select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label>Quantity (Pieces) <small id="txAvailHint" style="color:var(--primary); font-weight:700;"></small></label>
+                  <input type="number" id="txQuantity" class="form-input" min="1" required placeholder="e.g. 200">
+                </div>
+                <button type="submit" class="btn btn-primary">Confirm Transfer</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Transfer History Log</h3>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Date / Time</th>
+                    <th>Product</th>
+                    <th>From → To</th>
+                    <th>Quantity (Pieces)</th>
+                    <th>Authorized By</th>
+                  </tr>
+                </thead>
+                <tbody id="transfersTbody">
+                  <tr><td colspan="5" style="text-align:center; padding:20px;">Loading transfer history...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==============================================
+             TAB 4.8: PRICE CHANGE LOG (Blueprint Section 7.4)
+             ============================================== -->
+        <section id="tab-price-log" class="tab-pane owner-only-pane" style="display:none;">
+          <div class="card">
+            <div class="card-header">
+              <h3 class="card-title">Price & MOQ Change Audit Log</h3>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <input type="text" id="priceLogSearch" class="form-input" style="max-width:240px; padding:6px 10px;" placeholder="Search section, list, product..." oninput="filterPriceLog()">
+                <button class="btn btn-secondary btn-sm" onclick="loadPriceLog()">🔄 Refresh</button>
+              </div>
+            </div>
+            <div class="table-responsive">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Who (Admin)</th>
+                    <th>Section</th>
+                    <th>Price List</th>
+                    <th>Product</th>
+                    <th>Old → New Price</th>
+                    <th>Old → New MOQ</th>
+                  </tr>
+                </thead>
+                <tbody id="priceLogTbody">
+                  <tr><td colspan="7" style="text-align:center; padding:20px;">Loading price change log...</td></tr>
                 </tbody>
               </table>
             </div>
@@ -661,18 +764,18 @@
         </section>
 
         <!-- ==============================================
-             TAB 7: REPORTS & EXPORTS (Owner Only)
+             TAB 7: SECTIONED REPORTS & EXPORTS (Owner Only - Blueprint 9.2)
              ============================================== -->
         <section id="tab-reports" class="tab-pane owner-only-pane" style="display:none;">
-          <div class="card">
-            <div class="card-header">
-              <h3 class="card-title">Monthly Consolidated Sales & Tax Reports</h3>
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="flex-wrap:wrap; gap:12px;">
+              <div>
+                <h3 class="card-title" id="reportsSectionTitle">Sectioned Reports & Statements</h3>
+                <small style="color:var(--muted);" id="reportsPeriodDesc">Weekly starts Monday • Monthly calendar month • Custom range</small>
+              </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-success btn-sm" onclick="downloadConsolidatedCSV()">
                   <span>📥</span> Consolidated CSV
-                </button>
-                <button class="btn btn-primary btn-sm" onclick="downloadInvoicesZip()">
-                  <span>📦</span> Monthly Invoices ZIP
                 </button>
                 <a href="/api/admin/qr/poster" target="_blank" class="btn btn-outline btn-sm">
                   <span>🖨️</span> Counter QR Poster (PDF)
@@ -682,32 +785,78 @@
             <div class="card-body">
               <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap;">
                 <div class="form-group" style="margin-bottom:0;">
-                  <label style="font-size:0.8rem;">Filter Start Date</label>
+                  <label style="font-size:0.8rem;">Section</label>
+                  <select id="reportSectionSelect" class="form-select" style="padding:6px 10px;" onchange="loadReports()">
+                    <option value="all">All Sections Combined</option>
+                    <option value="factory">Factory Section</option>
+                    <option value="shopkeeper">Shopkeepers Section</option>
+                    <option value="regular">Regular (Shop) Section</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label style="font-size:0.8rem;">Period</label>
+                  <select id="reportPeriodSelect" class="form-select" style="padding:6px 10px;" onchange="toggleCustomReportDates(); loadReports();">
+                    <option value="weekly">Weekly (Starts Monday)</option>
+                    <option value="monthly" selected>Monthly</option>
+                    <option value="custom">Custom Date Range</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom:0;">
+                  <label style="font-size:0.8rem;">Start Date</label>
                   <input type="date" id="reportStartDate" class="form-input" style="padding:6px 10px;">
                 </div>
                 <div class="form-group" style="margin-bottom:0;">
-                  <label style="font-size:0.8rem;">Filter End Date</label>
+                  <label style="font-size:0.8rem;">End Date</label>
                   <input type="date" id="reportEndDate" class="form-input" style="padding:6px 10px;">
                 </div>
-                <button class="btn btn-secondary btn-sm" onclick="loadReports()">Apply Date Filter</button>
+                <button class="btn btn-secondary btn-sm" onclick="loadReports()">Apply Filter</button>
               </div>
 
-              <div class="metrics-grid" style="margin-bottom: 0;">
+              <div class="metrics-grid" style="margin-bottom: 20px;">
                 <div class="metric-card">
-                  <span class="metric-label">Filtered Orders</span>
+                  <span class="metric-label">Total Orders</span>
                   <div class="metric-value" id="reportTotalOrders">0</div>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-label">Filtered Revenue</span>
+                  <span class="metric-label">Total Pieces</span>
+                  <div class="metric-value" id="reportTotalPieces">0</div>
+                </div>
+                <div class="metric-card">
+                  <span class="metric-label">Gross Amount</span>
                   <div class="metric-value" id="reportTotalRevenue">₹0</div>
                 </div>
                 <div class="metric-card">
-                  <span class="metric-label">In-Shop Sales</span>
-                  <div class="metric-value" id="reportInShopOrders">0</div>
+                  <span class="metric-label">Standard vs Special Orders</span>
+                  <div class="metric-value" id="reportPricingShare" style="font-size:1.1rem;">0 Std / 0 Spc</div>
                 </div>
-                <div class="metric-card">
-                  <span class="metric-label">Wholesale Volume</span>
-                  <div class="metric-value" id="reportWholesaleOrders">0</div>
+              </div>
+
+              <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px;">
+                <div>
+                  <h4 style="margin-bottom: 10px; font-size:0.95rem;">Totals by Product</h4>
+                  <div class="table-responsive">
+                    <table class="data-table">
+                      <thead>
+                        <tr><th>Product</th><th>Pieces</th><th>Amount</th></tr>
+                      </thead>
+                      <tbody id="reportProductsTbody">
+                        <tr><td colspan="3" style="text-align:center;">No data</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+                <div>
+                  <h4 style="margin-bottom: 10px; font-size:0.95rem;">Top Customers & Statements</h4>
+                  <div class="table-responsive">
+                    <table class="data-table">
+                      <thead>
+                        <tr><th>Customer</th><th>Orders / Pcs</th><th>Paid</th><th>Statement</th></tr>
+                      </thead>
+                      <tbody id="reportCustomersTbody">
+                        <tr><td colspan="4" style="text-align:center;">No data</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -740,6 +889,28 @@
                 <div class="form-group">
                   <label>Cart Hold Reservation Duration (Minutes)</label>
                   <input type="number" id="settingHoldMinutes" class="form-input" min="1" max="60" value="10" required>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div class="form-group">
+                    <label>Week Start Day (Weekly Reports)</label>
+                    <select id="settingWeekStartDay" class="form-select">
+                      <option value="Monday" selected>Monday (Default)</option>
+                      <option value="Sunday">Sunday</option>
+                    </select>
+                  </div>
+                  <div class="form-group">
+                    <label>Separate Shop & Factory Stock</label>
+                    <select id="settingSeparateShopStock" class="form-select">
+                      <option value="true" selected>ON (Factory & Shop tracked separately)</option>
+                      <option value="false">OFF (Single combined stock pool)</option>
+                    </select>
+                  </div>
+                </div>
+                <div class="form-group" style="padding:10px; background:#FAF6F0; border-radius:8px; font-size:0.85rem;">
+                  <strong>Section Invoice Series (Sequential, No Gaps):</strong>
+                  <div id="settingInvoiceSeriesPreview" style="margin-top:4px; color:var(--muted);">
+                    Factory: FAC/2026-27/... • Shopkeepers: SHP/2026-27/... • Regular: RET/2026-27/...
+                  </div>
                 </div>
                 <button type="submit" class="btn btn-primary">Save Settings</button>
               </form>
@@ -1030,6 +1201,65 @@
           <button type="submit" class="btn btn-primary" id="btnSubmitAddCustomer">Register & Activate</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Edit Customer & Special Prices Modal (Blueprint Addendum Section 5.7 & 7.2) -->
+  <div id="editCustomerSpecialModal" class="modal-overlay" style="display: none;">
+    <div class="modal-dialog" style="max-width: 720px;">
+      <div class="modal-header">
+        <h3 class="modal-title" id="editSpecialModalTitle">Edit Customer & Special Prices</h3>
+        <button class="modal-close" onclick="closeModal('editCustomerSpecialModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editCustId">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Customer Name *</label>
+            <input type="text" id="editCustName" class="form-input">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>10-Digit Mobile Number *</label>
+            <input type="tel" id="editCustMobile" class="form-input" maxlength="10">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Shop / Business Name</label>
+            <input type="text" id="editCustShopName" class="form-input">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label>Address</label>
+            <input type="text" id="editCustAddress" class="form-input">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; padding:10px; background:#FAF6F0; border-radius:8px; margin-bottom:12px;">
+          <strong style="font-size:0.88rem;">Quick Special Price Tools:</strong>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="copyStandardPricesToModal()">📋 Copy Standard Prices</button>
+            <input type="number" id="pctAdjustInput" class="form-input" style="width:85px; padding:4px 8px;" placeholder="-10%">
+            <button type="button" class="btn btn-outline btn-sm" onclick="applyPercentToModal()">Apply %</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="resetCustomerToStandard()">Reset to Standard</button>
+          </div>
+        </div>
+
+        <div class="table-responsive" style="max-height:260px; overflow-y:auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Standard (₹ / MOQ)</th>
+                <th>Special Price (₹)</th>
+                <th>MOQ Override</th>
+              </tr>
+            </thead>
+            <tbody id="editSpecialPricesTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('editCustomerSpecialModal')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="saveCustomerAndSpecialPrices()">Save Customer & Prices</button>
+      </div>
     </div>
   </div>
 
