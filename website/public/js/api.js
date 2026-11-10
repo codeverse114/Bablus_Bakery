@@ -15,12 +15,24 @@ const API = {
     }).format(amount);
   },
 
+  getAuthHeaders(extra = {}) {
+    const token = localStorage.getItem('backrey_wholesale_token') || localStorage.getItem('backrey_customer_token');
+    const headers = { ...extra };
+    if (token) {
+      headers['x-customer-token'] = token;
+      headers['x-wholesale-token'] = token;
+    }
+    return headers;
+  },
+
   async getProducts(category = 'All', search = '') {
     const params = new URLSearchParams();
     if (category && category !== 'All') params.append('category', category);
     if (search) params.append('search', search);
 
-    const res = await fetch(`${this.baseUrl}/products?${params.toString()}`);
+    const res = await fetch(`${this.baseUrl}/products?${params.toString()}`, {
+      headers: this.getAuthHeaders()
+    });
     if (!res.ok) {
       throw new Error(`Failed to load products: ${res.statusText}`);
     }
@@ -28,7 +40,9 @@ const API = {
   },
 
   async getProductDetail(id) {
-    const res = await fetch(`${this.baseUrl}/products/${encodeURIComponent(id)}`);
+    const res = await fetch(`${this.baseUrl}/products/${encodeURIComponent(id)}`, {
+      headers: this.getAuthHeaders()
+    });
     if (!res.ok) {
       throw new Error(`Product not found or unavailable.`);
     }
@@ -36,11 +50,7 @@ const API = {
   },
 
   async validateCart(items) {
-    const wholesaleToken = localStorage.getItem('backrey_wholesale_token');
-    const headers = { 'Content-Type': 'application/json' };
-    if (wholesaleToken) {
-      headers['x-wholesale-token'] = wholesaleToken;
-    }
+    const headers = this.getAuthHeaders({ 'Content-Type': 'application/json' });
 
     const res = await fetch(`${this.baseUrl}/cart/validate`, {
       method: 'POST',
@@ -55,11 +65,7 @@ const API = {
   },
 
   async startCheckout(items, customer, inShop = false) {
-    const wholesaleToken = localStorage.getItem('backrey_wholesale_token');
-    const headers = { 'Content-Type': 'application/json' };
-    if (wholesaleToken) {
-      headers['x-wholesale-token'] = wholesaleToken;
-    }
+    const headers = this.getAuthHeaders({ 'Content-Type': 'application/json' });
 
     const res = await fetch(`${this.baseUrl}/checkout/start`, {
       method: 'POST',

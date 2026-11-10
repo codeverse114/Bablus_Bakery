@@ -4,28 +4,18 @@
  */
 
 document.addEventListener('DOMContentLoaded', () => {
-  // Tabs & Views
+  // Tabs & Views (Blueprint Addendum Section 5)
   const authView = document.getElementById('authView');
   const dashboardView = document.getElementById('dashboardView');
-  const tabBtnLogin = document.getElementById('tabBtnLogin');
-  const tabBtnRegister = document.getElementById('tabBtnRegister');
-  const wholesaleLoginForm = document.getElementById('wholesaleLoginForm');
-  const wholesaleRegisterForm = document.getElementById('wholesaleRegisterForm');
   const btnHeaderLogout = document.getElementById('btnHeaderLogout');
 
-  // Login inputs
-  const loginIdentifier = document.getElementById('loginIdentifier');
-  const loginPassword = document.getElementById('loginPassword');
-
-  // Register inputs
-  const regShopName = document.getElementById('regShopName');
-  const regOwnerName = document.getElementById('regOwnerName');
-  const regMobile = document.getElementById('regMobile');
-  const regEmail = document.getElementById('regEmail');
-  const regAddress = document.getElementById('regAddress');
-  const regState = document.getElementById('regState');
-  const regGSTIN = document.getElementById('regGSTIN');
-  const regPassword = document.getElementById('regPassword');
+  // OTP Login Forms & Elements
+  const otpRequestForm = document.getElementById('otpRequestForm');
+  const otpVerifyForm = document.getElementById('otpVerifyForm');
+  const loginMobile = document.getElementById('loginMobile');
+  const loginOtpCode = document.getElementById('loginOtpCode');
+  const displayTargetMobile = document.getElementById('displayTargetMobile');
+  const loginAlertBox = document.getElementById('loginAlertBox');
 
   // Dashboard elements
   const dashShopName = document.getElementById('dashShopName');
@@ -41,6 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   let currentWholesaleUser = null;
   let activeLastOrder = null;
+  let pendingMobile = '';
 
   function showToast(msg, type = 'info') {
     const container = document.getElementById('toastContainer');
@@ -55,6 +46,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 3200);
   }
 
+  function showAlert(msg, isNeutral = false) {
+    if (!loginAlertBox) return;
+    loginAlertBox.style.display = 'block';
+    if (isNeutral) {
+      loginAlertBox.style.background = '#FFFBEB';
+      loginAlertBox.style.color = '#B45309';
+      loginAlertBox.style.border = '1px solid #FCD34D';
+      loginAlertBox.innerHTML = `
+        <div style="font-weight:700; margin-bottom:4px;">${msg}</div>
+        <div style="margin-top:8px; display:flex; gap:8px;">
+          <a href="https://wa.me/918219775396?text=Hi%2C%20my%20number%20is%20not%20registered%20for%20Backrey%20Bases." target="_blank" class="btn-whatsapp" style="font-size:0.78rem; padding:4px 10px; text-decoration:none;">WhatsApp Factory</a>
+          <a href="tel:8219775396" class="btn-primary" style="font-size:0.78rem; padding:4px 10px; text-decoration:none;">Call 8219775396</a>
+        </div>
+      `;
+    } else {
+      loginAlertBox.style.background = '#FEF2F2';
+      loginAlertBox.style.color = '#B91C1C';
+      loginAlertBox.style.border = '1px solid #FECACA';
+      loginAlertBox.textContent = msg;
+    }
+  }
+
+  window.resetOtpStep = function() {
+    if (otpRequestForm) otpRequestForm.style.display = 'block';
+    if (otpVerifyForm) otpVerifyForm.style.display = 'none';
+    if (loginAlertBox) loginAlertBox.style.display = 'none';
+  };
+
   // Check existing session
   const token = localStorage.getItem('backrey_wholesale_token');
   if (token) {
@@ -63,81 +82,79 @@ document.addEventListener('DOMContentLoaded', () => {
     showAuthView();
   }
 
-  // Tab switching
-  tabBtnLogin.addEventListener('click', () => {
-    tabBtnLogin.classList.add('active');
-    tabBtnRegister.classList.remove('active');
-    wholesaleLoginForm.style.display = 'block';
-    wholesaleRegisterForm.style.display = 'none';
-  });
+  // STEP 1: OTP REQUEST HANDLER (Blueprint Section 5: Checks registered list before sending OTP)
+  if (otpRequestForm) {
+    otpRequestForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginAlertBox.style.display = 'none';
+      const mobile = loginMobile.value.trim();
 
-  tabBtnRegister.addEventListener('click', () => {
-    tabBtnRegister.classList.add('active');
-    tabBtnLogin.classList.remove('active');
-    wholesaleLoginForm.style.display = 'none';
-    wholesaleRegisterForm.style.display = 'block';
-  });
-
-  // LOGIN HANDLER (Blueprint 3.8)
-  wholesaleLoginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const identifier = loginIdentifier.value.trim();
-    const password = loginPassword.value;
-
-    try {
-      const res = await fetch('/api/wholesale/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password })
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        showToast(data.error || 'Login failed. Please check credentials.', 'error');
+      if (!mobile || mobile.length !== 10) {
+        showAlert('Please enter a valid 10-digit mobile number.');
         return;
       }
 
-      localStorage.setItem('backrey_wholesale_token', data.token);
-      localStorage.setItem('backrey_wholesale_user', JSON.stringify(data.wholesaler));
-      showToast(`Welcome back, ${data.wholesaler.shop_name}!`);
-      loadDashboard(data.token);
+      try {
+        const res = await fetch('/api/auth/otp/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobile })
+        });
 
-    } catch (err) {
-      showToast('Network error during login.', 'error');
-    }
-  });
+        const data = await res.json();
 
-  // REGISTER HANDLER (Blueprint 3.8: Active immediately, no approval)
-  wholesaleRegisterForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
+        // Test L1 & L3: Not registered / deactivated -> Neutral message with contact actions
+        if (!res.ok || !data.success) {
+          showAlert(data.error || 'This number is not registered. Please contact the factory.', true);
+          return;
+        }
 
-    const payload = {
-      shop_name: regShopName.value.trim(),
-      owner_name: regOwnerName.value.trim(),
-      mobile: regMobile.value.trim(),
-      email: regEmail.value.trim(),
-      address: regAddress.value.trim(),
-      state: regState.value.trim(),
-      gstin: regGSTIN.value.trim(),
-      password: regPassword.value
-    };
+        pendingMobile = mobile;
+        displayTargetMobile.textContent = mobile;
+        otpRequestForm.style.display = 'none';
+        otpVerifyForm.style.display = 'block';
 
-    try {
-      const res = await fetch('/api/wholesale/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
+        if (data.otp) {
+          loginOtpCode.value = data.otp; // Auto-populate for test convenience
+        }
+        showToast('Login OTP dispatched to ' + mobile);
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        showToast(data.error || 'Registration failed.', 'error');
-        return;
+      } catch (err) {
+        showAlert('Network error sending OTP. Please try again.');
       }
+    });
+  }
 
-      localStorage.setItem('backrey_wholesale_token', data.token);
-      localStorage.setItem('backrey_wholesale_user', JSON.stringify(data.wholesaler));
-      showToast('Wholesale account activated immediately! Welcome aboard.');
+  // STEP 2: OTP VERIFY HANDLER (Blueprint Section 5 & Test L2)
+  if (otpVerifyForm) {
+    otpVerifyForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      loginAlertBox.style.display = 'none';
+      const otp = loginOtpCode.value.trim();
+
+      try {
+        const res = await fetch('/api/auth/otp/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mobile: pendingMobile, otp })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          showAlert(data.error || 'Invalid OTP code. Please try again.');
+          return;
+        }
+
+        localStorage.setItem('backrey_wholesale_token', data.token);
+        localStorage.setItem('backrey_wholesale_user', JSON.stringify(data.customer));
+        showToast(`Welcome back, ${data.customer.name || 'Partner'}!`);
+        loadDashboard(data.token);
+
+      } catch (err) {
+        showAlert('Network error verifying OTP.');
+      }
+    });
+  }
       loadDashboard(data.token);
 
     } catch (err) {

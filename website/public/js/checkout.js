@@ -65,7 +65,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   const validatedCart = await window.cartManager.revalidateWithServer();
-  if (!validatedCart || !validatedCart.is_valid) {
+  if (validatedCart && validatedCart.price_changed && validatedCart.notices && validatedCart.notices.length > 0) {
+    showToast(`Price Updated: ${validatedCart.notices[0]}`, 'error');
+  } else if (!validatedCart || !validatedCart.is_valid) {
     showToast('Your cart contains out-of-stock or invalid items.', 'error');
   }
 

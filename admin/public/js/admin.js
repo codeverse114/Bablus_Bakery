@@ -1039,3 +1039,408 @@ async function submitAddStaff(e) {
 function closeModal(modalId) {
   document.getElementById(modalId).style.display = 'none';
 }
+
+// =========================================================================
+// BLUEPRINT ADDENDUM: SECTIONS (FACTORY, SHOPKEEPERS, REGULAR) LOGIC
+// =========================================================================
+let currentActiveSection = 'factory';
+let currentActiveInnerTab = 'Standard';
+
+function openSectionPage(section) {
+  currentActiveSection = section.toLowerCase();
+  
+  // Highlight sidebar
+  document.querySelectorAll('.nav-link').forEach(link => {
+    link.classList.toggle('active', link.getAttribute('data-tab') === `section-${currentActiveSection}`);
+  });
+
+  // Show section console tab pane
+  document.querySelectorAll('.tab-pane').forEach(pane => {
+    pane.style.display = pane.id === 'tab-section-console' ? 'block' : 'none';
+  });
+
+  const sectionLabels = {
+    factory: 'Factory Section (Direct Bulk Buyers)',
+    shopkeeper: 'Shopkeepers Section (Area Resellers)',
+    regular: 'Regular (Shop) Section (Retail Public)'
+  };
+
+  const badgeLabels = {
+    factory: 'FACTORY SECTION',
+    shopkeeper: 'SHOPKEEPERS SECTION',
+    regular: 'REGULAR (SHOP) SECTION'
+  };
+
+  document.getElementById('sectionBadge').textContent = badgeLabels[currentActiveSection] || 'CUSTOMER SECTION';
+  document.getElementById('sectionConsoleTitle').textContent = sectionLabels[currentActiveSection] || 'Customer Section';
+  document.getElementById('pageTitle').textContent = `${sectionLabels[currentActiveSection]} - Management`;
+
+  switchSectionInnerTab(currentActiveInnerTab);
+}
+
+function switchSectionInnerTab(innerTab) {
+  currentActiveInnerTab = innerTab;
+
+  document.querySelectorAll('.section-tab-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.id === `secTab-${innerTab}`);
+  });
+
+  ['Standard', 'Special', 'Customers', 'Billing'].forEach(tab => {
+    const pane = document.getElementById(`secInnerPane-${tab}`);
+    if (pane) pane.style.display = tab === innerTab ? 'block' : 'none';
+  });
+
+  if (innerTab === 'Standard') loadSectionStandardPrices();
+  if (innerTab === 'Special') loadSectionSpecialCustomers();
+  if (innerTab === 'Customers') loadSectionCustomers();
+  if (innerTab === 'Billing') loadSectionBilling();
+}
+
+async function loadSectionStandardPrices() {
+  const tbody = document.getElementById('sectionStandardPricesTbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">Loading standard price list...</td></tr>';
+
+  try {
+    const stdListId = `pl-${currentActiveSection.slice(0, 3)}-std`;
+    const res = await fetch(`${API_BASE}/price-lists/${stdListId}`, { headers: getAuthHeaders() });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--danger);">${data.error || 'Failed to load prices'}</td></tr>`;
+      return;
+    }
+
+    const items = data.items || [];
+    if (!items.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">No products configured for this price list.</td></tr>';
+      return;
+    }
+
+    // Also get count of special customers with overrides
+    const custRes = await fetch(`${API_BASE}/sections/${currentActiveSection}/customers`, { headers: getAuthHeaders() });
+    const custData = await custRes.json();
+    const specialCount = (custData.customers || []).filter(c => c.price_list_id).length;
+
+    tbody.innerHTML = items.map(item => {
+      const prod = currentProducts.find(p => p.id === item.product_id) || { name: item.product_id, code: '' };
+      return `
+        <tr>
+          <td>
+            <strong>${prod.name || item.product_id}</strong>
+            <div style="font-size:0.75rem; color:var(--muted);">${prod.code || ''}</div>
+          </td>
+          <td>
+            <span class="badge" style="background:#FAF6F0; color:var(--dark); font-weight:600;">
+              ${item.unit === 'pack' ? `Pack of ${item.pack_size || 10}` : 'Per piece'}
+            </span>
+          </td>
+          <td>
+            <input type="number" class="form-input" style="max-width:110px; padding:4px 8px; font-weight:700;" value="${item.price}" id="price-${item.product_id}">
+          </td>
+          <td>
+            <input type="number" class="form-input" style="max-width:90px; padding:4px 8px;" value="${item.moq || 1}" id="moq-${item.product_id}">
+          </td>
+          <td>
+            <span style="font-size:0.85rem; color:var(--primary); font-weight:600;">
+              ⭐ ${specialCount} Special accounts
+            </span>
+          </td>
+          <td>
+            <button class="btn btn-primary btn-sm" onclick="saveInlinePrice('${stdListId}', '${item.product_id}', '${item.unit}', ${item.pack_size || 1})">
+              Save
+            </button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--danger);">Error loading price list: ${err.message}</td></tr>`;
+  }
+}
+
+async function saveInlinePrice(listId, productId, unit, packSize) {
+  const priceInput = document.getElementById(`price-${productId}`);
+  const moqInput = document.getElementById(`moq-${productId}`);
+  const price = parseFloat(priceInput.value);
+  const moq = parseInt(moqInput.value, 10);
+
+  if (isNaN(price) || price <= 0) return alert('Price must be greater than zero.');
+  if (isNaN(moq) || moq < 1) return alert('MOQ must be at least 1.');
+
+  try {
+    const res = await fetch(`${API_BASE}/price-lists/${listId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        items: [{
+          product_id: productId,
+          price,
+          moq,
+          unit,
+          pack_size: packSize,
+          price_paise: Math.round(price * 100)
+        }]
+      })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Failed to save price');
+
+    alert(`Price updated to ₹${price} (MOQ: ${moq}). Logged in price audit trail.`);
+    loadSectionStandardPrices();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function loadSectionSpecialCustomers() {
+  const tbody = document.getElementById('sectionSpecialCustomersTbody');
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px;">Loading special accounts...</td></tr>';
+
+  try {
+    const res = await fetch(`${API_BASE}/sections/${currentActiveSection}/customers`, { headers: getAuthHeaders() });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">${data.error || 'Failed to load'}</td></tr>`;
+      return;
+    }
+
+    const specialCustomers = (data.customers || []).filter(c => c.price_list_id);
+    if (!specialCustomers.length) {
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--muted);">No customers currently assigned to a Special price list. Click "Add Customer to Special" above.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = specialCustomers.map(c => `
+      <tr>
+        <td><strong>${c.mobile}</strong></td>
+        <td>
+          <div style="font-weight:600;">${c.name}</div>
+          <div style="font-size:0.78rem; color:var(--muted);">${c.shop_name || 'Individual'}</div>
+        </td>
+        <td>
+          <span class="badge" style="background:#FEF3C7; color:#92400E; font-weight:700;">
+            ⭐ ${c.price_list_name || 'Special List'}
+          </span>
+        </td>
+        <td><strong>${c.custom_price_count || 'Custom'} items</strong></td>
+        <td>${c.last_order_date ? new Date(c.last_order_date).toLocaleDateString() : 'Never'}</td>
+        <td>
+          <span class="badge ${c.is_active ? 'badge-in-stock' : 'badge-out-of-stock'}">
+            ${c.is_active ? 'Active' : 'Deactivated'}
+          </span>
+        </td>
+        <td>
+          <button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">
+            Revert to Standard
+          </button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--danger);">${err.message}</td></tr>`;
+  }
+}
+
+async function loadSectionCustomers() {
+  const tbody = document.getElementById('sectionCustomersTbody');
+  tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding: 20px;">Loading registered customers...</td></tr>';
+
+  try {
+    const res = await fetch(`${API_BASE}/sections/${currentActiveSection}/customers`, { headers: getAuthHeaders() });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--danger);">${data.error || 'Failed to load'}</td></tr>`;
+      return;
+    }
+
+    const customers = data.customers || [];
+    if (!customers.length) {
+      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--muted);">No registered numbers in this section. Click "+ Register Customer" to whitelist an account.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = customers.map(c => `
+      <tr>
+        <td><strong>${c.mobile}</strong></td>
+        <td>
+          <div style="font-weight:600;">${c.name}</div>
+          <div style="font-size:0.78rem; color:var(--muted);">${c.shop_name || c.address || '—'}</div>
+        </td>
+        <td>
+          <span class="badge" style="background:${c.price_list_id ? '#FEF3C7' : '#EFF6FF'}; color:${c.price_list_id ? '#92400E' : '#1E40AF'}; font-weight:700;">
+            ${c.price_list_id ? '⭐ Special' : 'Standard'}
+          </span>
+        </td>
+        <td>${c.total_orders || 0}</td>
+        <td><strong>₹${(c.total_spend || 0).toLocaleString()}</strong></td>
+        <td>${c.last_order_date ? new Date(c.last_order_date).toLocaleDateString() : 'Never'}</td>
+        <td>
+          <button class="btn ${c.is_active ? 'btn-success' : 'btn-secondary'} btn-sm" onclick="toggleCustomerActive('${c.id}', ${!c.is_active})">
+            ${c.is_active ? '✓ Active' : '✕ Disabled'}
+          </button>
+        </td>
+        <td>
+          ${c.price_list_id 
+            ? `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', null)">Move to Standard</button>`
+            : `<button class="btn btn-outline btn-sm" onclick="moveCustomerList('${c.id}', 'pl-${currentActiveSection.slice(0, 3)}-spc-1')">Move to Special</button>`
+          }
+        </td>
+      </tr>
+    `).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:20px; color:var(--danger);">${err.message}</td></tr>`;
+  }
+}
+
+async function loadSectionBilling() {
+  const tbody = document.getElementById('sectionBillingTbody');
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px;">Loading section invoices...</td></tr>';
+
+  try {
+    const res = await fetch(`${API_BASE}/orders`, { headers: getAuthHeaders() });
+    const data = await res.json();
+    const allOrders = data.orders || [];
+
+    const sectionOrders = allOrders.filter(o => {
+      const channel = (o.channel || o.tag || '').toLowerCase();
+      if (currentActiveSection === 'factory') return channel.includes('factory');
+      if (currentActiveSection === 'shopkeeper') return channel.includes('wholesale') || channel.includes('shopkeeper');
+      return channel.includes('online') || channel.includes('in-shop') || channel.includes('retail');
+    });
+
+    if (!sectionOrders.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--muted);">No orders or invoices recorded in this section yet.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = sectionOrders.map(o => `
+      <tr>
+        <td><strong>${o.invoiceNo || 'INV-' + o.orderNo}</strong></td>
+        <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+        <td>${(o.customer && o.customer.name) || 'Customer'}</td>
+        <td><strong>₹${(o.grand_total || 0).toLocaleString()}</strong></td>
+        <td><span class="badge" style="background:#FAF6F0; color:var(--dark);">${o.tag || 'Standard'}</span></td>
+        <td>
+          <a href="/api/invoices/${o.orderNo}" target="_blank" class="btn btn-outline btn-sm">PDF Invoice</a>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--danger);">${e.message}</td></tr>`;
+  }
+}
+
+function openAddSectionCustomerModal(isSpecial = false) {
+  document.getElementById('modalCustomerSection').value = currentActiveSection;
+  document.getElementById('modalCustomerMobile').value = '';
+  document.getElementById('modalCustomerName').value = '';
+  document.getElementById('modalCustomerShopName').value = '';
+  document.getElementById('modalCustomerAddress').value = '';
+  document.getElementById('modalCustomerGstin').value = '';
+  document.getElementById('addCustomerAlert').style.display = 'none';
+
+  onSectionChangeInModal();
+
+  if (isSpecial) {
+    const specialSelect = document.getElementById('modalCustomerPriceList');
+    if (specialSelect.options.length > 1) {
+      specialSelect.selectedIndex = 1;
+    }
+  }
+
+  document.getElementById('addCustomerModal').style.display = 'flex';
+}
+
+function onSectionChangeInModal() {
+  const sec = document.getElementById('modalCustomerSection').value;
+  const priceListSelect = document.getElementById('modalCustomerPriceList');
+  priceListSelect.innerHTML = '<option value="">Standard Section Price List</option>';
+
+  const specialListId = `pl-${sec.slice(0, 3)}-spc-1`;
+  const opt = document.createElement('option');
+  opt.value = specialListId;
+  opt.textContent = `⭐ Special Price List (${sec.toUpperCase()} Custom)`;
+  priceListSelect.appendChild(opt);
+}
+
+async function submitAddSectionCustomer(e) {
+  e.preventDefault();
+  const alertEl = document.getElementById('addCustomerAlert');
+  alertEl.style.display = 'none';
+
+  const section = document.getElementById('modalCustomerSection').value;
+  const mobile = document.getElementById('modalCustomerMobile').value.trim();
+  const name = document.getElementById('modalCustomerName').value.trim();
+  const shop_name = document.getElementById('modalCustomerShopName').value.trim();
+  const address = document.getElementById('modalCustomerAddress').value.trim();
+  const gstin = document.getElementById('modalCustomerGstin').value.trim();
+  const price_list_id = document.getElementById('modalCustomerPriceList').value || null;
+
+  try {
+    const res = await fetch(`${API_BASE}/sections/${section}/customers`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        mobile,
+        name,
+        shop_name,
+        address,
+        gstin,
+        price_list_id
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      alertEl.textContent = data.error || 'Failed to register customer.';
+      alertEl.style.display = 'flex';
+      return;
+    }
+
+    closeModal('addCustomerModal');
+    alert(`Customer ${name} (${mobile}) successfully registered in ${section.toUpperCase()} section.`);
+    openSectionPage(section);
+  } catch (err) {
+    alertEl.textContent = 'Server error registering customer. Please try again.';
+    alertEl.style.display = 'flex';
+  }
+}
+
+async function toggleCustomerActive(id, newStatus) {
+  try {
+    const res = await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ is_active: newStatus, can_login: newStatus })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update customer status');
+    loadSectionCustomers();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+async function moveCustomerList(id, targetPriceListId) {
+  try {
+    const res = await fetch(`${API_BASE}/customers/${id}`, {
+      method: 'PATCH',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ price_list_id: targetPriceListId })
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) throw new Error(data.error || 'Failed to update customer price list');
+    alert(targetPriceListId ? 'Customer moved to Special Price List.' : 'Customer reverted to Standard Price List.');
+    if (currentActiveInnerTab === 'Special') loadSectionSpecialCustomers();
+    if (currentActiveInnerTab === 'Customers') loadSectionCustomers();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function switchReportsSection(section) {
+  switchTab('reports');
+}
+

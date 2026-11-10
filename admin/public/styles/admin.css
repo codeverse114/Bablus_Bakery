@@ -334,6 +334,50 @@ body {
   box-shadow: 0 4px 10px rgba(192, 86, 33, 0.35);
 }
 
+.sidebar-section-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #8C7B72;
+  margin: 14px 10px 4px 14px;
+}
+
+.nav-sublink {
+  padding-left: 28px;
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.section-tab-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 20px;
+}
+
+.section-tab-btn {
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.section-tab-btn:hover {
+  color: var(--dark);
+}
+
+.section-tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
 .nav-badge {
   margin-left: auto;
   background: rgba(255, 255, 255, 0.15);
