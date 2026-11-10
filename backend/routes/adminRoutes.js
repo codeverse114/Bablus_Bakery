@@ -5,18 +5,18 @@ const store = require('../models/store');
 
 // Admin Authentication Middleware (Blueprint Section 1 & Test X2, Test W8)
 function requireAdminAuth(req, res, next) {
-  // If wholesaler token is passed to admin endpoint, deny 403 (Test W8)
-  if (req.headers['x-wholesale-token']) {
-    return res.status(403).json({
-      success: false,
-      error: 'Access Denied: Wholesaler or unauthorized user cannot access the admin URL.'
-    });
-  }
-
   const authHeader = req.headers['authorization'] || req.headers['x-admin-token'];
   let token = authHeader;
   if (token && token.startsWith('Bearer ')) {
     token = token.slice(7).trim();
+  }
+
+  // If wholesale or customer token is passed to admin endpoint, deny 403 (Test W8)
+  if (req.headers['x-wholesale-token'] || req.headers['x-customer-token'] || (token && token.startsWith('token-'))) {
+    return res.status(403).json({
+      success: false,
+      error: 'Access Denied: Customer or wholesaler cannot access the admin URL.'
+    });
   }
 
   if (!token) {
@@ -93,6 +93,40 @@ router.get('/notifications/failures', adminController.getNotificationFailures);
 
 // 8. Wholesale Customer Overview
 router.get('/wholesale/customers', adminController.getWholesaleCustomers);
+
+// 8.1 Customer Sections & Whitelist Registry (Blueprint Addendum Section 7.3 & Section 11)
+router.get('/sections/:section/customers', adminController.getSectionCustomers);
+router.post('/sections/:section/customers', adminController.addSectionCustomer);
+router.patch('/customers/:id', adminController.updateCustomer);
+
+// 8.2 Standard & Special Price Lists & Price Log (Blueprint Addendum Section 7.1, 7.2 & 7.4)
+router.get('/price-lists/:id', adminController.getPriceList);
+router.put('/price-lists/:id', requireOwnerRole, adminController.updatePriceList);
+router.post('/price-lists', requireOwnerRole, adminController.createPriceList);
+router.get('/price-log', adminController.getPriceLog);
+
+// 8.3 Dual Location Stock Transfers (Blueprint Addendum Section 8 & Section 11)
+router.post('/stock/transfer', adminController.transferStock);
+router.get('/stock/locations', (req, res) => {
+  const store = require('../models/store');
+  const locations = store.stock_locations.map(loc => ({
+    ...loc,
+    stock: store.location_stock.filter(ls => ls.location_id === loc.id).map(ls => ({
+      product_id: ls.product_id,
+      qty: ls.qty,
+      product_name: (store.products.find(p => p.id === ls.product_id) || {}).name || ls.product_id
+    }))
+  }));
+  res.json({ success: true, locations });
+});
+router.get('/stock/transfers', (req, res) => {
+  const store = require('../models/store');
+  res.json({ success: true, transfers: store.stock_transfers });
+});
+
+// 8.4 Sectioned Reports & Customer Statements (Blueprint Addendum Section 9.2 & Tests B2-B8)
+router.get('/reports/section/:section', requireOwnerRole, adminController.getSectionReport);
+router.get('/reports/section/:section/statement', requireOwnerRole, adminController.getSectionCustomerStatement);
 
 // 9. Owner-Only Protected Sections (Test X7: Staff denied 403)
 router.post('/wholesale/price-override', requireOwnerRole, adminController.setWholesalePriceOverride);

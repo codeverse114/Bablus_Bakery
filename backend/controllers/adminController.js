@@ -564,3 +564,483 @@ exports.addStaff = (req, res) => {
   });
 };
 
+// =========================================================================
+// BLUEPRINT ADDENDUM: SECTIONS, CUSTOMERS, PRICE LISTS & TRANSFERS CONTROLLERS
+// =========================================================================
+
+// Section Customers (Blueprint Section 7.3 & Section 11)
+exports.getSectionCustomers = (req, res) => {
+  try {
+    const { section } = req.params;
+    const customers = store.getCustomersBySection(section);
+    res.json({
+      success: true,
+      section,
+      count: customers.length,
+      customers
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.addSectionCustomer = (req, res) => {
+  try {
+    const { section } = req.params;
+    const customer = store.addCustomer({
+      section,
+      ...req.body
+    });
+    res.status(201).json({
+      success: true,
+      message: 'Customer successfully added to section registry.',
+      customer
+    });
+  } catch (err) {
+    const status = err.statusCode || 400;
+    res.status(status).json({ success: false, error: err.message });
+  }
+};
+
+exports.updateCustomer = (req, res) => {
+  try {
+    const { id } = req.params;
+    const customer = store.updateCustomer(id, req.body);
+    res.json({
+      success: true,
+      message: 'Customer record updated successfully.',
+      customer
+    });
+  } catch (err) {
+    const status = err.statusCode || 400;
+    res.status(status).json({ success: false, error: err.message });
+  }
+};
+
+// Price Lists & Items (Blueprint Section 7.1, 7.2 & Section 11)
+exports.getPriceList = (req, res) => {
+  try {
+    const { id } = req.params;
+    const list = store.price_lists.find(pl => pl.id === id);
+    if (!list) {
+      return res.status(404).json({ success: false, error: 'Price list not found.' });
+    }
+
+    const items = store.price_list_items.filter(item => item.price_list_id === id);
+    res.json({
+      success: true,
+      price_list: list,
+      items
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.updatePriceList = (req, res) => {
+  try {
+    const { id } = req.params;
+    const list = store.price_lists.find(pl => pl.id === id);
+    if (!list) {
+      return res.status(404).json({ success: false, error: 'Price list not found.' });
+    }
+
+    const { items = [], name, is_active } = req.body;
+    if (name) list.name = name;
+    if (is_active !== undefined) list.is_active = Boolean(is_active);
+
+    const adminEmail = req.adminUser ? req.adminUser.email : 'owner@backreybases.in';
+
+    // Update or insert price list items and log changes
+    for (const newItem of items) {
+      const existingIdx = store.price_list_items.findIndex(i => 
+        i.price_list_id === id && i.product_id === newItem.product_id
+      );
+
+      const oldPrice = existingIdx >= 0 ? store.price_list_items[existingIdx].price : null;
+      const oldMoq = existingIdx >= 0 ? store.price_list_items[existingIdx].moq : null;
+
+      const updatedPrice = newItem.price !== undefined ? Number(newItem.price) : oldPrice;
+      const updatedMoq = newItem.moq !== undefined ? Number(newItem.moq) : oldMoq;
+
+      if (existingIdx >= 0) {
+        store.price_list_items[existingIdx] = {
+          ...store.price_list_items[existingIdx],
+          ...newItem,
+          price: updatedPrice,
+          price_paise: updatedPrice !== null ? Math.round(updatedPrice * 100) : store.price_list_items[existingIdx].price_paise,
+          moq: updatedMoq,
+          price_list_id: id
+        };
+      } else {
+        store.price_list_items.push({
+          unit: 'pack',
+          pack_size: 10,
+          ...newItem,
+          price: updatedPrice,
+          price_paise: updatedPrice !== null ? Math.round(updatedPrice * 100) : 0,
+          moq: updatedMoq !== null ? updatedMoq : 1,
+          price_list_id: id
+        });
+      }
+
+      // Log price change (Section 4 & 7.4: Price change log)
+      if (oldPrice !== updatedPrice || oldMoq !== updatedMoq) {
+        store.price_change_log.unshift({
+          id: 'pcl-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+          admin_id: adminEmail,
+          section: list.section,
+          list_name: list.name,
+          price_list_id: id,
+          product_id: newItem.product_id,
+          old_price: oldPrice,
+          new_price: updatedPrice,
+          old_moq: oldMoq,
+          new_moq: updatedMoq,
+          created_at: new Date().toISOString()
+        });
+      }
+    }
+
+    res.json({
+      success: true,
+      message: 'Price list updated successfully.',
+      price_list: list,
+      items: store.price_list_items.filter(i => i.price_list_id === id)
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+exports.createPriceList = (req, res) => {
+  try {
+    const { section, name, type = 'special', items = [] } = req.body;
+    if (!section || !name) {
+      return res.status(400).json({ success: false, error: 'Section and name are required.' });
+    }
+
+    const newList = {
+      id: 'pl-' + section.slice(0, 3) + '-' + Date.now(),
+      section: section.toLowerCase(),
+      name,
+      type,
+      is_active: true
+    };
+
+    store.price_lists.push(newList);
+
+    for (const item of items) {
+      store.price_list_items.push({
+        price_list_id: newList.id,
+        ...item
+      });
+    }
+
+    res.status(201).json({
+      success: true,
+      message: 'Price list created successfully.',
+      price_list: newList
+    });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+};
+
+exports.getPriceLog = (req, res) => {
+  res.json({
+    success: true,
+    count: store.price_change_log.length,
+    log: store.price_change_log
+  });
+};
+
+// Stock Location Transfers (Blueprint Section 8 & Section 11)
+exports.transferStock = (req, res) => {
+  try {
+    const { from_location, to_location, product_id, qty } = req.body;
+    if (!from_location || !to_location || !product_id || !qty) {
+      return res.status(400).json({
+        success: false,
+        error: 'from_location, to_location, product_id, and qty are required.'
+      });
+    }
+
+    const transferQty = parseInt(qty, 10);
+    if (isNaN(transferQty) || transferQty <= 0) {
+      return res.status(400).json({ success: false, error: 'Transfer quantity must be greater than zero.' });
+    }
+
+    // Check available quantity at source location
+    const sourceStock = store.location_stock.find(ls => 
+      ls.location_id === from_location && ls.product_id === product_id
+    );
+
+    const available = sourceStock ? sourceStock.qty : 0;
+    if (transferQty > available) {
+      return res.status(400).json({
+        success: false,
+        error: `Transfer quantity (${transferQty}) exceeds available stock (${available}) at source location.`
+      });
+    }
+
+    // Deduct from source
+    sourceStock.qty -= transferQty;
+
+    // Add to destination
+    let destStock = store.location_stock.find(ls => 
+      ls.location_id === to_location && ls.product_id === product_id
+    );
+    if (!destStock) {
+      destStock = { location_id: to_location, product_id, qty: 0 };
+      store.location_stock.push(destStock);
+    }
+    destStock.qty += transferQty;
+
+    const transferRecord = {
+      id: 'tx-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+      from_location,
+      to_location,
+      product_id,
+      qty: transferQty,
+      admin_id: req.adminUser ? req.adminUser.email : 'Owner',
+      created_at: new Date().toISOString()
+    };
+
+    store.stock_transfers.unshift(transferRecord);
+
+    res.json({
+      success: true,
+      message: `Successfully transferred ${transferQty} units from ${from_location} to ${to_location}.`,
+      transfer: transferRecord,
+      source_stock: sourceStock.qty,
+      destination_stock: destStock.qty
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// Sectioned Reports & Customer Statements (Blueprint Addendum Section 9.2 & Tests B2 - B8)
+exports.getSectionReport = (req, res) => {
+  try {
+    const sec = (req.params.section || 'all').toLowerCase();
+    const { period = 'monthly', startDate, endDate, month, week } = req.query;
+
+    let filteredOrders = store.orders.slice();
+
+    // 1. Filter by Section
+    if (sec !== 'all') {
+      filteredOrders = filteredOrders.filter(o => {
+        const orderSection = (o.section || (o.customer && o.customer.section) || (o.tag === 'Wholesale' ? 'shopkeeper' : 'regular')).toLowerCase();
+        return orderSection === sec;
+      });
+    }
+
+    // 2. Filter by Date Period (Weekly, Monthly, Custom)
+    const now = new Date();
+    if (period === 'weekly') {
+      // Default week start is Monday (Blueprint Section 9.2 & 15.8)
+      const dayOfWeek = now.getDay(); // 0 is Sunday, 1 is Monday
+      const diffToMonday = (dayOfWeek + 6) % 7;
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - diffToMonday);
+      monday.setHours(0, 0, 0, 0);
+
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      sunday.setHours(23, 59, 59, 999);
+
+      filteredOrders = filteredOrders.filter(o => {
+        const oDate = new Date(o.createdAt);
+        return oDate >= monday && oDate <= sunday;
+      });
+    } else if (period === 'monthly') {
+      const monthPrefix = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      filteredOrders = filteredOrders.filter(o => o.createdAt && o.createdAt.startsWith(monthPrefix));
+    } else if (period === 'custom') {
+      if (startDate) {
+        const start = new Date(startDate);
+        filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) >= start);
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        filteredOrders = filteredOrders.filter(o => new Date(o.createdAt) <= end);
+      }
+    }
+
+    // 3. Compute Metrics
+    let totalPieces = 0;
+    let grossAmount = 0;
+    let totalPaid = 0;
+    let stdOrdersCount = 0;
+    let stdOrdersAmount = 0;
+    let spcOrdersCount = 0;
+    let spcOrdersAmount = 0;
+
+    const productMap = {};
+    const customerMap = {};
+
+    for (const o of filteredOrders) {
+      grossAmount += (o.grand_total || 0);
+      if (o.status === 'Paid') totalPaid += (o.grand_total || 0);
+
+      const isSpecial = Boolean(o.price_list_id || (o.items || []).some(i => i.price_source === 'special'));
+      if (isSpecial) {
+        spcOrdersCount++;
+        spcOrdersAmount += (o.grand_total || 0);
+      } else {
+        stdOrdersCount++;
+        stdOrdersAmount += (o.grand_total || 0);
+      }
+
+      // Customer stats
+      const cMobile = (o.customer && o.customer.mobile) ? o.customer.mobile : (o.wholesalerId || 'Guest');
+      const cName = (o.customer && o.customer.name) ? o.customer.name : 'Walk-in Customer';
+      if (!customerMap[cMobile]) {
+        customerMap[cMobile] = {
+          mobile: cMobile,
+          name: cName,
+          shop_name: (o.customer && o.customer.shop_name) || '',
+          section: o.section || 'regular',
+          orders_count: 0,
+          pieces: 0,
+          amount_paid: 0
+        };
+      }
+      customerMap[cMobile].orders_count++;
+      customerMap[cMobile].amount_paid += (o.grand_total || 0);
+
+      // Item stats
+      for (const item of (o.items || [])) {
+        const pieces = item.pieces || ((item.unit === 'pack') ? (item.quantity * (item.pack_unit_size || item.pack_size || 1)) : item.quantity);
+        totalPieces += pieces;
+        customerMap[cMobile].pieces += pieces;
+
+        const pid = item.id;
+        if (!productMap[pid]) {
+          productMap[pid] = {
+            product_id: pid,
+            code: item.code || pid,
+            name: item.name,
+            pieces: 0,
+            amount: 0
+          };
+        }
+        productMap[pid].pieces += pieces;
+        productMap[pid].amount += (item.total || 0);
+      }
+    }
+
+    const customersBreakdown = Object.values(customerMap);
+    const topCustomers = customersBreakdown.slice().sort((a, b) => b.amount_paid - a.amount_paid);
+
+    res.json({
+      success: true,
+      section: sec,
+      period,
+      total_orders: filteredOrders.length,
+      total_pieces: totalPieces,
+      gross_amount: grossAmount,
+      total_amount_paid: totalPaid,
+      pricing_breakdown: {
+        standard_orders_count: stdOrdersCount,
+        standard_orders_amount: stdOrdersAmount,
+        special_orders_count: spcOrdersCount,
+        special_orders_amount: spcOrdersAmount
+      },
+      products_breakdown: Object.values(productMap),
+      customers_breakdown: customersBreakdown,
+      top_customers: topCustomers,
+      orders: filteredOrders
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+exports.getSectionCustomerStatement = (req, res) => {
+  try {
+    const { section } = req.params;
+    const { customerId, mobile, period = 'monthly', month, format = 'json' } = req.query;
+
+    const customer = store.customers.find(c => 
+      c.id === customerId || 
+      c.mobile === customerId || 
+      (mobile && c.mobile === mobile)
+    ) || store.wholesalers.find(w => w.id === customerId || w.mobile === customerId);
+
+    if (!customer) {
+      return res.status(404).json({ success: false, error: 'Customer not found.' });
+    }
+
+    let customerOrders = store.orders.filter(o => 
+      o.customerId === customer.id || 
+      o.wholesalerId === customer.id ||
+      (o.customer && (o.customer.id === customer.id || o.customer.mobile === customer.mobile))
+    );
+
+    if (month) {
+      customerOrders = customerOrders.filter(o => o.createdAt && o.createdAt.startsWith(month));
+    }
+
+    // Build line item statements
+    const lines = [];
+    let totalPieces = 0;
+    let totalAmount = 0;
+
+    for (const o of customerOrders) {
+      for (const item of (o.items || [])) {
+        const pieces = item.pieces || ((item.unit === 'pack') ? (item.quantity * (item.pack_unit_size || 1)) : item.quantity);
+        totalPieces += pieces;
+        totalAmount += (item.total || 0);
+
+        lines.push({
+          date: o.createdAt ? o.createdAt.split('T')[0] : '',
+          order_no: o.orderNo,
+          invoice_no: o.invoiceNo,
+          product: item.name,
+          rate: item.unit_price,
+          pieces,
+          amount: item.total,
+          amount_paid: o.grand_total,
+          status: o.status
+        });
+      }
+    }
+
+    if (format === 'csv') {
+      let csv = 'Date,Order No,Invoice No,Product,Rate,Pieces,Amount,Amount Paid,Status\n';
+      lines.forEach(l => {
+        csv += `${l.date},"${l.order_no}","${l.invoice_no}","${l.product}",${l.rate},${l.pieces},${l.amount},${l.amount_paid},"${l.status}"\n`;
+      });
+      csv += `\nTotal Orders,${customerOrders.length}\nTotal Pieces,${totalPieces}\nTotal Amount,${totalAmount}\n`;
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="Statement-${customer.id}.csv"`);
+      return res.send(csv);
+    }
+
+    res.json({
+      success: true,
+      customer: {
+        id: customer.id,
+        name: customer.name || customer.owner_name,
+        shop_name: customer.shop_name,
+        mobile: customer.mobile,
+        section: customer.section || section
+      },
+      summary: {
+        total_orders: customerOrders.length,
+        total_pieces: totalPieces,
+        total_amount: totalAmount
+      },
+      lines
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+
